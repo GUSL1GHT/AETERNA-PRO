@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#020617">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="AETERNA">
+  <title>AETERNA PRO | Digital Synthesis</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #020617;
+      --panel: #0f172a;
+      --panel-soft: #111827;
+      --line: rgba(148, 163, 184, .24);
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --cyan: #22d3ee;
+      --cyan-strong: #0891b2;
+      --green: #10b981;
+      --red: #ef4444;
+      --warning: #f59e0b;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at top, rgba(34, 211, 238, .16), transparent 36rem),
+        linear-gradient(160deg, #020617, #020617 45%, #08111f);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .shell {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: max(18px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+    }
+
+    .card {
+      width: min(100%, 540px);
+      border: 1px solid var(--line);
+      border-radius: 30px;
+      background: rgba(15, 23, 42, .82);
+      box-shadow: 0 24px 80px rgba(0, 0, 0, .38);
+      overflow: hidden;
+      backdrop-filter: blur(14px);
+    }
+
+    .hero {
+      padding: 34px 26px 18px;
+      text-align: center;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(34px, 9vw, 52px);
+      line-height: 1;
+      font-weight: 300;
+      letter-spacing: .24em;
+      text-indent: .24em;
+    }
+
+    .tagline {
+      margin: 12px 0 0;
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: .44em;
+      text-indent: .44em;
+      text-transform: uppercase;
+    }
+
+    .content { padding: 0 24px 26px; }
+
+    .section {
+      margin-top: 18px;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: rgba(2, 6, 23, .56);
+    }
+
+    .section-title {
+      margin: 0 0 14px;
+      color: var(--cyan);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .16em;
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    label {
+      display: block;
+      margin: 0 0 8px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    input[type="password"], input[type="text"], select {
+      width: 100%;
+      min-height: 46px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(15, 23, 42, .9);
+      color: var(--text);
+      padding: 0 14px;
+      font: inherit;
+    }
+
+    input[type="file"] {
+      width: 100%;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    input[type="file"]::file-selector-button {
+      margin-right: 12px;
+      border: 0;
+      border-radius: 999px;
+      background: var(--cyan);
+      color: #06202a;
+      padding: 11px 16px;
+      font-weight: 800;
+    }
+
+    .row { display: grid; gap: 10px; }
+    .two { grid-template-columns: 1fr 1fr; }
+
+    button, .link-button {
+      width: 100%;
+      min-height: 50px;
+      border: 1px solid transparent;
+      border-radius: 16px;
+      color: white;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+      display: inline-grid;
+      place-items: center;
+      text-decoration: none;
+    }
+
+    .primary { background: linear-gradient(135deg, #0891b2, #0e7490); }
+    .secondary { background: rgba(30, 41, 59, .92); border-color: var(--line); }
+    .green { background: var(--green); }
+    .red { background: var(--red); }
+
+    button:disabled { opacity: .55; cursor: wait; }
+
+    .hint, .warning {
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .warning { color: #fbbf24; }
+
+    video, audio {
+      width: 100%;
+      margin-top: 14px;
+      border-radius: 18px;
+      background: #000;
+    }
+
+    .output {
+      width: 100%;
+      min-height: 220px;
+      max-height: 42vh;
+      overflow: auto;
+      white-space: pre-wrap;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 16px;
+      background: rgba(2, 6, 23, .78);
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .footer {
+      padding: 0 24px 24px;
+      color: rgba(148, 163, 184, .62);
+      font-size: 10px;
+      letter-spacing: .18em;
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    .hidden { display: none !important; }
+
+    @media (max-width: 520px) {
+      .content { padding-inline: 16px; }
+      .section { padding: 16px; }
+      .two { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="card" aria-label="AETERNA PRO">
+      <header class="hero">
+        <h1>AETERNA</h1>
+        <p class="tagline">Digital Synthesis</p>
+      </header>
+
+      <div class="content">
+        <section class="section">
+          <p class="section-title">Paso 1: Configuracion</p>
+          <div class="row">
+            <label for="apiKeyInput">Gemini API Key</label>
+            <input id="apiKeyInput" type="password" autocomplete="off" placeholder="Pega tu API Key aqui">
+            <div class="row two">
+              <button id="saveKeyButton" class="secondary" type="button">Guardar en este dispositivo</button>
+              <button id="clearKeyButton" class="secondary" type="button">Borrar clave</button>
+            </div>
+            <p id="keyState" class="hint">No hay API Key guardada en este navegador.</p>
+            <p class="warning">No subas claves privadas al repositorio. Esta version guarda la clave solo en el navegador del dispositivo.</p>
+          </div>
+        </section>
+
+        <section class="section">
+          <p class="section-title">Paso 2: Archivo</p>
+          <input id="mediaInput" type="file" accept="video/*,audio/*">
+          <p id="fileState" class="hint">Selecciona un archivo de audio o video.</p>
+          <video id="videoPreview" class="hidden" controls playsinline></video>
+          <audio id="audioPreview" class="hidden" controls></audio>
+        </section>
+
+        <section class="section">
+          <p class="section-title">Paso 3: Conversion</p>
+          <div class="row">
+            <label for="modelInput">Modelo</label>
+            <input id="modelInput" type="text" value="gemini-2.5-flash" spellcheck="false">
+            <button id="transcribeButton" class="primary" type="button">Iniciar conversion</button>
+            <p id="statusText" class="hint">Listo.</p>
+          </div>
+        </section>
+
+        <section id="resultSection" class="section hidden">
+          <p class="section-title">Resultado</p>
+          <div id="resultOutput" class="output"></div>
+          <div class="row two" style="margin-top: 12px;">
+            <button id="copyButton" class="secondary" type="button">Copiar</button>
+            <button id="downloadButton" class="secondary" type="button">Descargar TXT</button>
+          </div>
+        </section>
+      </div>
+
+      <footer class="footer">Architected by GUSLIGHT</footer>
+    </section>
+  </main>
+
+  <script>
+    const STORAGE_KEY = "aeterna_gemini_api_key";
+    const els = {
+      apiKeyInput: document.getElementById("apiKeyInput"),
+      saveKeyButton: document.getElementById("saveKeyButton"),
+      clearKeyButton: document.getElementById("clearKeyButton"),
+      keyState: document.getElementById("keyState"),
+      mediaInput: document.getElementById("mediaInput"),
+      fileState: document.getElementById("fileState"),
+      videoPreview: document.getElementById("videoPreview"),
+      audioPreview: document.getElementById("audioPreview"),
+      modelInput: document.getElementById("modelInput"),
+      transcribeButton: document.getElementById("transcribeButton"),
+      statusText: document.getElementById("statusText"),
+      resultSection: document.getElementById("resultSection"),
+      resultOutput: document.getElementById("resultOutput"),
+      copyButton: document.getElementById("copyButton"),
+      downloadButton: document.getElementById("downloadButton")
+    };
+
+    let selectedFile = null;
+    let selectedBase64 = null;
+    let previewUrl = null;
+    let lastResult = "";
+
+    function setStatus(message) {
+      els.statusText.textContent = message;
+    }
+
+    function refreshKeyState() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      els.keyState.textContent = saved
+        ? "API Key guardada en este navegador."
+        : "No hay API Key guardada en este navegador.";
+      if (saved && !els.apiKeyInput.value) {
+        els.apiKeyInput.value = saved;
+      }
+    }
+
+    function cleanIntro(text) {
+      return String(text || "")
+        .replace(/^(Claro,|Aqui tienes|Aqui esta|La transcripcion|Transcripcion:|Te dejo la transcripcion).*\n?/i, "")
+        .trim();
+    }
+
+    function readFileAsBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const value = String(reader.result || "");
+          resolve(value.includes(",") ? value.split(",")[1] : value);
+        };
+        reader.onerror = () => reject(reader.error || new Error("No se pudo leer el archivo."));
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function resetPreview() {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+        previewUrl = null;
+      }
+      els.videoPreview.classList.add("hidden");
+      els.audioPreview.classList.add("hidden");
+      els.videoPreview.removeAttribute("src");
+      els.audioPreview.removeAttribute("src");
+    }
+
+    els.saveKeyButton.addEventListener("click", () => {
+      const key = els.apiKeyInput.value.trim();
+      if (!key) {
+        localStorage.removeItem(STORAGE_KEY);
+      } else {
+        localStorage.setItem(STORAGE_KEY, key);
+      }
+      refreshKeyState();
+    });
+
+    els.clearKeyButton.addEventListener("click", () => {
+      localStorage.removeItem(STORAGE_KEY);
+      els.apiKeyInput.value = "";
+      refreshKeyState();
+    });
+
+    els.mediaInput.addEventListener("change", async (event) => {
+      const file = event.target.files && event.target.files[0];
+      selectedFile = file || null;
+      selectedBase64 = null;
+      resetPreview();
+
+      if (!file) {
+        els.fileState.textContent = "Selecciona un archivo de audio o video.";
+        return;
+      }
+
+      els.fileState.textContent = `${file.name} · ${(file.size / 1024 / 1024).toFixed(2)} MB · ${file.type || "tipo no detectado"}`;
+      previewUrl = URL.createObjectURL(file);
+      if ((file.type || "").startsWith("video/")) {
+        els.videoPreview.src = previewUrl;
+        els.videoPreview.classList.remove("hidden");
+      } else if ((file.type || "").startsWith("audio/")) {
+        els.audioPreview.src = previewUrl;
+        els.audioPreview.classList.remove("hidden");
+      }
+
+      setStatus("Leyendo archivo...");
+      try {
+        selectedBase64 = await readFileAsBase64(file);
+        setStatus("Archivo preparado.");
+      } catch (error) {
+        setStatus("Error leyendo el archivo.");
+      }
+    });
+
+    els.transcribeButton.addEventListener("click", async () => {
+      const apiKey = els.apiKeyInput.value.trim() || localStorage.getItem(STORAGE_KEY) || "";
+      const model = els.modelInput.value.trim() || "gemini-2.5-flash";
+
+      if (!apiKey) {
+        setStatus("Falta la API Key.");
+        return;
+      }
+      if (!selectedFile || !selectedBase64) {
+        setStatus("Selecciona primero un archivo valido.");
+        return;
+      }
+
+      els.transcribeButton.disabled = true;
+      els.transcribeButton.textContent = "Sintetizando...";
+      els.resultSection.classList.add("hidden");
+      setStatus("Enviando archivo a Gemini...");
+
+      try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                { text: "Transcribe el archivo adjunto. Devuelve solo el texto literal, sin frases introductorias ni explicaciones." },
+                { inlineData: { mimeType: selectedFile.type || "application/octet-stream", data: selectedBase64 } }
+              ]
+            }]
+          })
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error?.message || `Error HTTP ${response.status}`);
+        }
+
+        const text = data.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("\n") || "";
+        lastResult = cleanIntro(text);
+        els.resultOutput.textContent = lastResult || "No se ha recibido texto.";
+        els.resultSection.classList.remove("hidden");
+        setStatus("Conversion completada.");
+      } catch (error) {
+        lastResult = "";
+        els.resultOutput.textContent = `Error: ${error.message || "No se pudo procesar el archivo."}`;
+        els.resultSection.classList.remove("hidden");
+        setStatus("Error al procesar el archivo.");
+      } finally {
+        els.transcribeButton.disabled = false;
+        els.transcribeButton.textContent = "Iniciar conversion";
+      }
+    });
+
+    els.copyButton.addEventListener("click", async () => {
+      if (!lastResult) return;
+      await navigator.clipboard.writeText(lastResult);
+      setStatus("Texto copiado.");
+    });
+
+    els.downloadButton.addEventListener("click", () => {
+      if (!lastResult) return;
+      const blob = new Blob([lastResult], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "transcripcion-aeterna.txt";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    });
+
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw.js").catch(() => {});
+      });
+    }
+
+    refreshKeyState();
+  </script>
+</body>
+</html>
