@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#020617"/>
+  <circle cx="256" cy="256" r="190" fill="#0f172a" stroke="#22d3ee" stroke-width="10"/>
+  <text x="256" y="248" text-anchor="middle" font-family="Arial, sans-serif" font-size="72" letter-spacing="18" fill="#ffffff">A</text>
+  <text x="256" y="318" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" letter-spacing="8" fill="#67e8f9">AETERNA</text>
+</svg>
