@@ -1,11 +1,223 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>AETERNA | Digital Synthesis</title>
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://un
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AETERNA | Digital Synthesis</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-slate-950 text-slate-200">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState } = React;
+
+        const BACKEND_URL = "https://aeterna-pro-backend.onrender.com";
+
+        function App() {
+            const [loading, setLoading] = useState(false);
+            const [result, setResult] = useState(null);
+            const [mediaFile, setMediaFile] = useState(null);
+            const [videoPreviewUrl, setVideoPreviewUrl] = useState(null);
+            const [errorMsg, setErrorMsg] = useState(null);
+            const [uploadProgress, setUploadProgress] = useState(0);
+
+            const handleFileChange = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                setErrorMsg(null);
+                setResult(null);
+                setUploadProgress(0);
+                setMediaFile(file);
+
+                if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
+                setVideoPreviewUrl(URL.createObjectURL(file));
+            };
+
+            const handleTranscribe = () => {
+                if (!mediaFile) return;
+
+                setLoading(true);
+                setResult(null);
+                setErrorMsg(null);
+                setUploadProgress(0);
+
+                const formData = new FormData();
+                formData.append("file", mediaFile);
+
+                const xhr = new XMLHttpRequest();
+                xhr.open("POST", `${BACKEND_URL}/api/transcribe`, true);
+
+                xhr.upload.onprogress = (event) => {
+                    if (event.lengthComputable) {
+                        const percentComplete = Math.round((event.loaded / event.total) * 100);
+                        setUploadProgress(percentComplete);
+                    }
+                };
+
+                xhr.onload = function () {
+                    setLoading(false);
+
+                    try {
+                        const responseData = JSON.parse(xhr.responseText || "{}");
+
+                        if (xhr.status === 200 && responseData.success) {
+                            setResult(responseData.transcription);
+                        } else {
+                            setErrorMsg(responseData.error || `Error del servidor (${xhr.status})`);
+                        }
+                    } catch (e) {
+                        setErrorMsg("Error al procesar la respuesta del servidor.");
+                    }
+                };
+
+                xhr.onerror = function () {
+                    setLoading(false);
+                    setErrorMsg("Error de red o conexión rechazada por el backend. Comprueba que Render esté activo.");
+                };
+
+                xhr.send(formData);
+            };
+
+            const copyToClipboard = () => {
+                if (result) {
+                    navigator.clipboard.writeText(result);
+                    alert("Copiado al portapapeles");
+                }
+            };
+
+            const downloadTextFile = () => {
+                if (!result) return;
+
+                const blob = new Blob([result], { type: "text/plain" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+
+                a.href = url;
+                a.download = "transcripcion.txt";
+                a.click();
+
+                URL.revokeObjectURL(url);
+            };
+
+            return (
+                <div className="min-h-screen p-4 flex items-center justify-center font-sans">
+                    <div className="max-w-md w-full bg-[#0d1521] border border-slate-800 rounded-3xl p-6 shadow-2xl">
+                        <h1 className="text-4xl font-light text-white text-center mb-1 tracking-[0.2em] uppercase">AETERNA</h1>
+                        <p className="text-[10px] text-slate-500 text-center mb-8 tracking-[0.4em] uppercase">Digital Synthesis</p>
+
+                        <p className="text-sm font-medium text-slate-200 text-center mb-8 px-4">
+                            Descarga tu contenido, cárgalo aquí y obtén la transcripción exacta de forma instantánea.
+                        </p>
+
+                        <div className="flex flex-col gap-4 mb-8">
+                            <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest text-center border-b border-slate-800 pb-2">Paso 1: Obtén el archivo</p>
+
+                            <a
+                                href="https://snaptik.app/"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="w-full bg-[#00a86b] hover:bg-[#008f5a] text-white font-bold py-3.5 rounded-xl text-center text-sm transition-all shadow-md"
+                            >
+                                Descargar de TikTok
+                            </a>
+
+                            <a
+                                href="https://www.y2mate.is/"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3.5 rounded-xl text-center text-sm transition-all shadow-md"
+                            >
+                                Descargar de YouTube
+                            </a>
+                        </div>
+
+                        <div className="bg-slate-950 p-5 rounded-2xl border border-slate-700 text-center mb-6">
+                            <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest mb-4">Paso 2: Selección de archivo</p>
+
+                            <input
+                                type="file"
+                                accept="video/*,audio/*"
+                                onChange={handleFileChange}
+                                className="block w-full text-sm text-slate-300 file:mr-4 file:py-2.5 file:px-6 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-cyan-500 file:text-slate-950 hover:file:bg-cyan-600"
+                            />
+
+                            {mediaFile && (
+                                <p className="text-xs text-emerald-400 mt-3 font-medium truncate">{mediaFile.name}</p>
+                            )}
+                        </div>
+
+                        {videoPreviewUrl && (
+                            <div className="mb-6 rounded-2xl overflow-hidden border border-slate-700 bg-black">
+                                <video src={videoPreviewUrl} controls className="w-full h-auto" />
+                            </div>
+                        )}
+
+                        <button
+                            onClick={handleTranscribe}
+                            disabled={loading || !mediaFile}
+                            className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-4 rounded-xl transition-all mb-8 shadow-lg shadow-cyan-900/20 disabled:opacity-50"
+                        >
+                            {loading ? `Procesando... ${uploadProgress}%` : "Iniciar Conversión"}
+                        </button>
+
+                        {loading && (
+                            <div className="w-full bg-slate-950 rounded-full h-2 mb-6 border border-slate-800 overflow-hidden">
+                                <div
+                                    className="bg-cyan-500 h-2 transition-all duration-300"
+                                    style={{ width: `${uploadProgress}%` }}
+                                ></div>
+                            </div>
+                        )}
+
+                        {errorMsg && (
+                            <div className="mb-6 p-4 bg-red-950/40 border border-red-900/60 rounded-2xl text-red-200 text-xs font-mono whitespace-pre-wrap overflow-x-auto">
+                                <div className="font-bold uppercase tracking-wider text-red-400 mb-1">Error en Proceso:</div>
+                                {errorMsg}
+                            </div>
+                        )}
+
+                        {result && (
+                            <div className="space-y-4">
+                                <div className="bg-slate-950 p-5 rounded-2xl border border-slate-700 text-slate-100 text-sm whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto shadow-inner">
+                                    {result}
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button
+                                        onClick={copyToClipboard}
+                                        className="bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-xs font-bold border border-slate-700 transition-all"
+                                    >
+                                        Copiar
+                                    </button>
+
+                                    <button
+                                        onClick={downloadTextFile}
+                                        className="bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-xs font-bold border border-slate-700 transition-all"
+                                    >
+                                        Descargar
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="mt-10 text-center border-t border-slate-800 pt-6">
+                            <p className="text-[9px] text-slate-500 uppercase tracking-widest">Architected by GUSLIGHT</p>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById("root"));
+        root.render(<App />);
+    </script>
+</body>
+</html>
