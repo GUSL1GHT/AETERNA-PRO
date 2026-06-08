@@ -12,6 +12,13 @@ app.use(express.json());
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+const isTemporaryGeminiError = (error) => {
+  const text = JSON.stringify(error || {}).toLowerCase() + ' ' + String(error?.message || '').toLowerCase();
+  return text.includes('503') || text.includes('unavailable') || text.includes('overloaded') || text.includes('try again later');
+};
+
 app.get('/', (req, res) => {
   res.json({ ok: true, service: 'AETERNA backend activo' });
 });
@@ -47,7 +54,7 @@ app.post('/api/transcribe', upload.single('file'), async (req, res) => {
     let fileState = await ai.files.get({ name: uploadResult.name });
 
     while (fileState.state === 'PROCESSING') {
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      await sleep(3000);
       fileState = await ai.files.get({ name: uploadResult.name });
     }
 
@@ -55,18 +62,39 @@ app.post('/api/transcribe', upload.single('file'), async (req, res) => {
       throw new Error(`El archivo falló con estado: ${fileState.state}`);
     }
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: createUserContent([
-        createPartFromUri(uploadResult.uri, uploadResult.mimeType),
-        'Transcribe el archivo adjunto. Solo devuelve el texto literal, sin frases introductorias ni aclaraciones.'
-      ])
-    });
+    const prompt = 'Transcribe el archivo adjunto. Solo devuelve el texto literal, sin frases introductorias ni aclaraciones.';
+    const models = ['gemini-2.5-flash-lite', 'gemini-2.5-flash'];
+    let lastError = null;
 
-    res.json({
-      success: true,
-      transcription: (response.text || '').trim()
-    });
+    for (const model of models) {
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const response = await ai.models.generateContent({
+            model,
+            contents: createUserContent([
+              createPartFromUri(uploadResult.uri, uploadResult.mimeType),
+              prompt
+            ])
+          });
+
+          return res.json({
+            success: true,
+            model,
+            transcription: (response.text || '').trim()
+          });
+        } catch (error) {
+          lastError = error;
+
+          if (!isTemporaryGeminiError(error)) {
+            throw error;
+          }
+
+          await sleep(3000 * attempt);
+        }
+      }
+    }
+
+    throw lastError || new Error('Gemini no ha respondido después de varios intentos.');
 
   } catch (error) {
     console.error(error);
