@@ -2,7 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const cors = require('cors');
 const fs = require('fs');
-const { GoogleGenAI } = require('@google/genai');
+const { GoogleGenAI, createUserContent, createPartFromUri } = require('@google/genai');
 
 const app = express();
 const upload = multer({ dest: 'uploads/' });
@@ -35,11 +35,13 @@ app.post('/api/transcribe', upload.single('file'), async (req, res) => {
     }
 
     filePath = req.file.path;
-    const mimeType = req.file.mimetype || 'audio/mp3';
+    const mimeType = req.file.mimetype || 'video/mp4';
 
     const uploadResult = await ai.files.upload({
       file: filePath,
-      mimeType
+      config: {
+        mimeType: mimeType
+      }
     });
 
     let fileState = await ai.files.get({ name: uploadResult.name });
@@ -55,12 +57,10 @@ app.post('/api/transcribe', upload.single('file'), async (req, res) => {
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
-      contents: [
-        uploadResult,
-        {
-          text: 'Transcribe el archivo adjunto. Solo devuelve el texto literal, sin frases introductorias ni aclaraciones.'
-        }
-      ]
+      contents: createUserContent([
+        createPartFromUri(uploadResult.uri, uploadResult.mimeType),
+        'Transcribe el archivo adjunto. Solo devuelve el texto literal, sin frases introductorias ni aclaraciones.'
+      ])
     });
 
     res.json({
