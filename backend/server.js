@@ -43,6 +43,9 @@ const normalizeKnownTerms = (value) => {
     .replace(/\bWind\s*Hook\b/gi, 'Windhawk')
     .replace(/\bWindhook\b/gi, 'Windhawk')
     .replace(/\bWindHawk\b/g, 'Windhawk')
+    .replace(/\bPinocho\b/gi, 'Pinokio')
+    .replace(/\bPinocchio\b/gi, 'Pinokio')
+    .replace(/\bPinoccio\b/gi, 'Pinokio')
     .replace(/\bPinokio\b/gi, 'Pinokio')
     .replace(/\bVoicebox\b/gi, 'Voicebox')
     .replace(/\bEleven\s*Labs\b/gi, 'ElevenLabs')
@@ -84,7 +87,7 @@ const fallbackTitleFromTranscript = (transcription, fileName) => {
     return 'Cambiar el menú Inicio de Windows 11 con Windhawk';
   }
 
-  if (text.includes('pinokio') || text.includes('voicebox') || text.includes('elevenlabs')) {
+  if (text.includes('pinokio') || text.includes('pinocho') || text.includes('pinocchio') || text.includes('voicebox') || text.includes('elevenlabs')) {
     return 'Instalar herramientas de IA local con Pinokio';
   }
 
@@ -103,15 +106,50 @@ const fallbackTitleFromTranscript = (transcription, fileName) => {
   return cleanText(fileName).replace(/\.[^/.]+$/, '') || 'Transcripción AETERNA';
 };
 
+const buildFallbackTermAudit = (transcription) => {
+  const text = cleanText(transcription);
+  const lower = text.toLowerCase();
+  const suspicious = [];
+
+  const add = (seen, suggestion, reason) => {
+    suspicious.push({ seen, suggestion, reason });
+  };
+
+  if (lower.includes('pinocho') || lower.includes('pinocchio') || lower.includes('pinoccio')) {
+    add('Pinocho / Pinocchio', 'Pinokio', 'El contexto parece hablar de una herramienta de IA/software, no del personaje.');
+  }
+
+  if (lower.includes('windhook') || lower.includes('wind hook') || lower.includes('windhawk')) {
+    add('Windhook / WindHawk', 'Windhawk', 'El contexto parece hablar de personalización de Windows.');
+  }
+
+  const genericNamePattern = /\b(app|programa|herramienta|web|ia|modelo|plugin|extensi[oó]n|repositorio|github|windows|python|terminal)\b/i;
+  if (genericNamePattern.test(text) && suspicious.length === 0) {
+    add('Nombres propios técnicos', 'Revisión manual', 'El contenido menciona software/herramientas; revisar posibles nombres propios antes de convertirlo en guía o tarea.');
+  }
+
+  return {
+    technicalConfidence: suspicious.length ? 'media' : 'alta',
+    doubtfulTerms: suspicious,
+    note: suspicious.length
+      ? 'Fuente útil, pero revisar nombres propios de herramientas antes de convertirla en guía o tarea.'
+      : 'No se han detectado dudas técnicas evidentes automáticamente.'
+  };
+};
+
 const generateKnowledgeMetadata = async ({ title, transcription, fileName }) => {
   const normalizedTranscript = normalizeKnownTerms(transcription);
   const fallbackTitle = isWeakTitle(title) ? fallbackTitleFromTranscript(normalizedTranscript, fileName) : normalizeKnownTerms(title);
+  const fallbackAudit = buildFallbackTermAudit(transcription);
 
   const fallback = {
     title: fallbackTitle,
     summary: 'Pendiente de revisar.',
     tags: ['aeterna', 'transcripcion'],
-    ideas: ['Revisar la transcripción y decidir si se convierte en guía, mejora o tarea.']
+    ideas: ['Revisar la transcripción y decidir si se convierte en guía, mejora o tarea.'],
+    technicalConfidence: fallbackAudit.technicalConfidence,
+    doubtfulTerms: fallbackAudit.doubtfulTerms,
+    technicalNote: fallbackAudit.note
   };
 
   try {
@@ -123,14 +161,23 @@ const generateKnowledgeMetadata = async ({ title, transcription, fileName }) => 
   "title": "título útil y corto en español de España",
   "summary": "resumen de 1 frase",
   "tags": ["tag1", "tag2", "tag3"],
-  "ideas": ["idea práctica 1", "idea práctica 2"]
+  "ideas": ["idea práctica 1", "idea práctica 2"],
+  "technicalConfidence": "alta | media | baja",
+  "doubtfulTerms": [
+    { "seen": "término transcrito", "suggestion": "posible término correcto", "reason": "motivo breve" }
+  ],
+  "technicalNote": "nota breve sobre fiabilidad de nombres técnicos"
 }
 
 Reglas:
 - El título debe describir lo que enseña o propone el vídeo.
 - No uses nombres basura de archivo como snaptik, y2mate, videoplayback o números.
-- Si aparece Windhook, WindHook o WindHawk, corrígelo como Windhawk.
+- No conviertas nombres raros de software en palabras comunes españolas.
+- Si aparece Windhook, WindHook o WindHawk, corrígelo como Windhawk si el contexto es Windows/mods/personalización.
+- Si aparece Pinocho, Pinocchio o parecido y el contexto habla de IA/software, marca como probable Pinokio.
 - Si aparece Pinokio, Voicebox, ElevenLabs, Ace Jam o Reclip, respeta esos nombres.
+- Si no estás seguro de un nombre de programa, no inventes: añádelo a doubtfulTerms.
+- technicalConfidence debe ser "alta" solo si no hay nombres técnicos dudosos.
 - Los tags deben ser simples, en minúsculas y útiles para buscar.
 - Devuelve solo JSON.
 
@@ -142,15 +189,43 @@ ${input}`
     if (!parsed) return fallback;
 
     const generatedTitle = normalizeKnownTerms(parsed.title);
+    const parsedDoubtfulTerms = Array.isArray(parsed.doubtfulTerms)
+      ? parsed.doubtfulTerms.map((term) => ({
+          seen: normalizeKnownTerms(term?.seen || ''),
+          suggestion: normalizeKnownTerms(term?.suggestion || ''),
+          reason: cleanText(term?.reason || '')
+        })).filter(term => term.seen || term.suggestion || term.reason).slice(0, 10)
+      : [];
+
+    const mergedDoubtfulTerms = [...fallbackAudit.doubtfulTerms, ...parsedDoubtfulTerms]
+      .filter((term, index, array) => array.findIndex(other => `${other.seen}|${other.suggestion}` === `${term.seen}|${term.suggestion}`) === index)
+      .slice(0, 10);
+
     return {
       title: isWeakTitle(generatedTitle) ? fallback.title : generatedTitle,
       summary: normalizeKnownTerms(parsed.summary) || fallback.summary,
       tags: Array.isArray(parsed.tags) && parsed.tags.length ? parsed.tags.map(tag => sanitizeSlug(tag)).filter(Boolean).slice(0, 8) : fallback.tags,
-      ideas: Array.isArray(parsed.ideas) && parsed.ideas.length ? parsed.ideas.map(normalizeKnownTerms).filter(Boolean).slice(0, 5) : fallback.ideas
+      ideas: Array.isArray(parsed.ideas) && parsed.ideas.length ? parsed.ideas.map(normalizeKnownTerms).filter(Boolean).slice(0, 5) : fallback.ideas,
+      technicalConfidence: cleanText(parsed.technicalConfidence) || fallback.technicalConfidence,
+      doubtfulTerms: mergedDoubtfulTerms,
+      technicalNote: normalizeKnownTerms(parsed.technicalNote) || fallback.technicalNote
     };
   } catch (_) {
     return fallback;
   }
+};
+
+const renderDoubtfulTerms = (terms) => {
+  if (!Array.isArray(terms) || terms.length === 0) {
+    return '- No se han detectado dudas técnicas evidentes automáticamente.';
+  }
+
+  return terms.map((term) => {
+    const seen = cleanText(term.seen) || 'Término no especificado';
+    const suggestion = cleanText(term.suggestion) || 'Revisar manualmente';
+    const reason = cleanText(term.reason) || 'Posible nombre propio o herramienta técnica.';
+    return `- "${seen}" → posible: "${suggestion}". Motivo: ${reason}`;
+  }).join('\n');
 };
 
 const buildTranscriptMarkdown = ({ title, platform, project, transcription, model, fileName, metadata }) => {
@@ -166,6 +241,9 @@ const buildTranscriptMarkdown = ({ title, platform, project, transcription, mode
   const cleanIdeas = Array.isArray(metadata?.ideas) && metadata.ideas.length
     ? metadata.ideas.map((idea) => `- ${normalizeKnownTerms(idea)}`).join('\n')
     : '- Revisar la transcripción y decidir si se convierte en guía, mejora o tarea.';
+  const technicalConfidence = cleanText(metadata?.technicalConfidence) || 'media';
+  const technicalNote = normalizeKnownTerms(metadata?.technicalNote) || 'Revisar nombres propios antes de convertir esta fuente en una guía o tarea.';
+  const doubtfulTerms = renderDoubtfulTerms(metadata?.doubtfulTerms);
 
   return `# ${cleanTitle}
 
@@ -177,7 +255,16 @@ const buildTranscriptMarkdown = ({ title, platform, project, transcription, mode
 - Archivo original: ${cleanFileName}
 - Modelo de transcripción: ${cleanModel}
 - Estado: pendiente
+- Confianza técnica: ${technicalConfidence}
 - Etiquetas: ${cleanTags}
+
+## Auditoría técnica de términos
+
+${technicalNote}
+
+### Términos dudosos detectados
+
+${doubtfulTerms}
 
 ## Resumen automático
 
@@ -290,7 +377,10 @@ Reglas obligatorias:
 - No elimines repeticiones, muletillas, pausas naturales ni frases incompletas si se escuchan.
 - Mantén el orden exacto del discurso.
 - Conserva nombres propios, marcas, herramientas, menús, programas y términos técnicos tal como se oigan.
+- No conviertas nombres raros de software en palabras comunes españolas.
+- Si una palabra suena a nombre de app, modelo, web, plugin, librería, IA o programa, consérvala como nombre propio si es posible.
 - Si oyes Windhook, WindHook o WindHawk y el contexto es Windows/mods/personalización, escribe Windhawk.
+- Si oyes Pinocho, Pinocchio o parecido y el contexto habla de instalar IA/software local, escribe Pinokio.
 - Mantén expresiones coloquiales si aparecen en el audio.
 - Si una palabra no se entiende, escribe [inaudible].
 - Si dudas entre dos palabras, usa la más probable por contexto.
@@ -419,7 +509,9 @@ app.post('/api/save-transcript-to-github', async (req, res) => {
       commit: data?.commit?.sha || null,
       title: metadata.title,
       summary: metadata.summary,
-      tags: metadata.tags
+      tags: metadata.tags,
+      technicalConfidence: metadata.technicalConfidence,
+      doubtfulTerms: metadata.doubtfulTerms
     });
   } catch (error) {
     console.error(error);
