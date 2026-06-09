@@ -12,7 +12,7 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
-<body class="bg-slate-950 text-slate-200 overflow-hidden">
+<body class="bg-slate-950 text-slate-200 md:overflow-hidden overflow-y-auto">
     <div id="root"></div>
 
     <script type="text/babel">
@@ -26,7 +26,7 @@
             const [result, setResult] = useState(null);
             const [resultMeta, setResultMeta] = useState(null);
             const [mediaFile, setMediaFile] = useState(null);
-            const [previewUrl, setPreviewUrl] = useState(null);
+            const [videoPreviewUrl, setVideoPreviewUrl] = useState(null);
             const [errorMsg, setErrorMsg] = useState(null);
             const [saveMsg, setSaveMsg] = useState(null);
             const [uploadProgress, setUploadProgress] = useState(0);
@@ -42,6 +42,7 @@
                     try {
                         const response = await fetch(`${BACKEND_URL}/api/github-repos`);
                         const data = await response.json();
+
                         if (response.ok && data.success && Array.isArray(data.repos)) {
                             setRepos(data.repos);
                         }
@@ -51,12 +52,14 @@
                         setReposLoading(false);
                     }
                 };
+
                 loadRepos();
             }, []);
 
             const handleFileChange = (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
+
                 setErrorMsg(null);
                 setSaveMsg(null);
                 setResult(null);
@@ -64,12 +67,14 @@
                 setUploadProgress(0);
                 setMediaFile(file);
                 setTitle("");
-                if (previewUrl) URL.revokeObjectURL(previewUrl);
-                setPreviewUrl(URL.createObjectURL(file));
+
+                if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
+                setVideoPreviewUrl(URL.createObjectURL(file));
             };
 
             const handleTranscribe = () => {
                 if (!mediaFile) return;
+
                 setLoading(true);
                 setResult(null);
                 setResultMeta(null);
@@ -85,14 +90,17 @@
 
                 xhr.upload.onprogress = (event) => {
                     if (event.lengthComputable) {
-                        setUploadProgress(Math.round((event.loaded / event.total) * 100));
+                        const percentComplete = Math.round((event.loaded / event.total) * 100);
+                        setUploadProgress(percentComplete);
                     }
                 };
 
                 xhr.onload = function () {
                     setLoading(false);
+
                     try {
                         const responseData = JSON.parse(xhr.responseText || "{}");
+
                         if (xhr.status === 200 && responseData.success) {
                             setResult(responseData.transcription);
                             setTitle(responseData.suggestedTitle || "");
@@ -103,7 +111,7 @@
                         } else {
                             setErrorMsg(responseData.error || `Error del servidor (${xhr.status})`);
                         }
-                    } catch (_) {
+                    } catch (e) {
                         setErrorMsg("Error al procesar la respuesta del servidor.");
                     }
                 };
@@ -125,17 +133,21 @@
 
             const downloadTextFile = () => {
                 if (!result) return;
+
                 const blob = new Blob([result], { type: "text/plain" });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement("a");
+
                 a.href = url;
                 a.download = "transcripcion.txt";
                 a.click();
+
                 URL.revokeObjectURL(url);
             };
 
             const saveToGitHub = async () => {
                 if (!result) return;
+
                 setSaving(true);
                 setErrorMsg(null);
                 setSaveMsg(null);
@@ -143,7 +155,9 @@
                 try {
                     const response = await fetch(`${BACKEND_URL}/api/save-transcript-to-github`, {
                         method: "POST",
-                        headers: { "Content-Type": "application/json" },
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
                         body: JSON.stringify({
                             title,
                             platform,
@@ -153,10 +167,13 @@
                             fileName: resultMeta?.fileName || mediaFile?.name || ""
                         })
                     });
+
                     const data = await response.json();
+
                     if (!response.ok || !data.success) {
                         throw new Error(data.error || `Error del servidor (${response.status})`);
                     }
+
                     setSaveMsg(`Guardado en GitHub: ${data.path}`);
                 } catch (error) {
                     setErrorMsg(error.message || "Error guardando en GitHub.");
@@ -165,115 +182,178 @@
                 }
             };
 
-            const hasOutput = !!result || !!errorMsg || !!saveMsg;
-            const isVideo = mediaFile?.type?.startsWith("video/");
-            const isAudio = mediaFile?.type?.startsWith("audio/");
-
             return (
-                <div className="h-dvh w-screen bg-slate-950 font-sans p-2 md:p-3 overflow-hidden">
-                    <div className="h-full max-w-6xl mx-auto bg-[#0d1521] border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
-                        <header className="shrink-0 px-3 py-2 md:px-4 md:py-3 border-b border-slate-800 text-center">
-                            <h1 className="text-2xl md:text-4xl font-light text-white tracking-[0.24em] uppercase leading-none">AETERNA</h1>
-                            <p className="text-[8px] md:text-[9px] text-slate-500 tracking-[0.35em] uppercase mt-1">Digital Synthesis</p>
-                            <p className="hidden sm:block text-xs text-slate-400 mt-2">Convierte vídeos en fuentes de conocimiento para GitHub.</p>
+                <div className="min-h-dvh md:h-dvh w-screen bg-slate-950 font-sans md:p-3 p-2 md:overflow-hidden overflow-y-auto">
+                    <div className="md:h-full max-w-6xl mx-auto bg-[#0d1521] border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+                        <header className="shrink-0 px-4 py-3 border-b border-slate-800 flex items-center justify-between gap-3">
+                            <div>
+                                <h1 className="text-2xl md:text-3xl font-light text-white tracking-[0.22em] uppercase leading-none">AETERNA</h1>
+                                <p className="text-[8px] md:text-[9px] text-slate-500 tracking-[0.35em] uppercase mt-1">Digital Synthesis</p>
+                            </div>
+                            <p className="hidden md:block text-xs text-slate-400 text-right max-w-sm">
+                                Vídeo → transcripción → fuente GitHub
+                            </p>
                         </header>
 
-                        <main className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[390px_1fr] gap-0 overflow-hidden">
-                            <section className={`${hasOutput ? 'hidden lg:flex' : 'flex'} min-h-0 lg:border-r border-slate-800 p-2 md:p-4 flex-col gap-3 overflow-hidden`}>
-                                <div className="bg-slate-950/70 p-3 rounded-2xl border border-slate-700 text-center shrink-0">
-                                    <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest mb-1">Paso 1: Descarga el vídeo</p>
-                                    <p className="text-xs text-slate-400 mb-3">Pega el enlace en una de estas webs y descarga el archivo.</p>
-                                    <div className="grid grid-cols-1 gap-3">
-                                        <a href="https://snaptik.app/" target="_blank" rel="noopener noreferrer" className="bg-[#00a86b] hover:bg-[#008f5a] text-white font-bold py-3.5 rounded-xl text-center text-base transition-all shadow-md">Descargar TikTok</a>
-                                        <a href="https://www.y2mate.is/" target="_blank" rel="noopener noreferrer" className="bg-red-600 hover:bg-red-500 text-white font-bold py-3.5 rounded-xl text-center text-base transition-all shadow-md">Descargar YouTube</a>
+                        <div className="shrink-0 px-4 py-3 border-b border-slate-800 bg-slate-950/35">
+                            <div className="grid grid-cols-1 md:grid-cols-5 gap-2 text-[11px] text-slate-300">
+                                <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-2"><b className="text-cyan-400">1.</b> Descarga el vídeo desde TikTok o YouTube.</div>
+                                <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-2"><b className="text-cyan-400">2.</b> Selecciona el archivo descargado.</div>
+                                <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-2"><b className="text-cyan-400">3.</b> Pulsa iniciar conversión.</div>
+                                <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-2"><b className="text-cyan-400">4.</b> Revisa la transcripción.</div>
+                                <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-2"><b className="text-cyan-400">5.</b> Copia, descarga o guarda en GitHub.</div>
+                            </div>
+                        </div>
+
+                        <main className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[390px_1fr] gap-0 md:overflow-hidden overflow-visible">
+                            <section className="min-h-0 lg:border-r border-slate-800 p-3 md:p-4 flex flex-col gap-3 md:overflow-y-auto overflow-visible">
+                                <div className="bg-slate-950/70 p-3 rounded-2xl border border-slate-700">
+                                    <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest mb-2">Paso 1: Descarga el vídeo</p>
+                                    <p className="text-xs text-slate-400 mb-3">Abre el servicio correspondiente, pega el enlace del vídeo y descarga el archivo.</p>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <a
+                                            href="https://snaptik.app/"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="bg-[#00a86b] hover:bg-[#008f5a] text-white font-bold py-3 rounded-xl text-center text-sm transition-all shadow-md"
+                                        >
+                                            TikTok
+                                        </a>
+
+                                        <a
+                                            href="https://www.y2mate.is/"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl text-center text-sm transition-all shadow-md"
+                                        >
+                                            YouTube
+                                        </a>
                                     </div>
                                 </div>
 
-                                <div className="bg-slate-950 p-3 md:p-4 rounded-2xl border border-slate-700 text-center shrink-0">
-                                    <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest mb-1">Paso 2: Selecciona el archivo</p>
-                                    <p className="text-xs text-slate-400 mb-3">Elige el vídeo o audio descargado.</p>
-                                    <input type="file" accept="video/*,audio/*" onChange={handleFileChange} className="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-cyan-500 file:text-slate-950 hover:file:bg-cyan-600" />
-                                    {mediaFile && <p className="text-xs text-emerald-400 mt-3 font-medium truncate">{mediaFile.name}</p>}
-                                </div>
+                                <div className="bg-slate-950 p-4 rounded-2xl border border-slate-700 text-center">
+                                    <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest mb-2">Paso 2: Selecciona vídeo o audio</p>
+                                    <p className="text-xs text-slate-400 mb-3">Elige el archivo que acabas de descargar en tu dispositivo.</p>
 
-                                <div className="rounded-2xl border border-slate-800 bg-slate-950/45 flex-1 min-h-0 flex items-center justify-center overflow-hidden">
-                                    {!mediaFile && (
-                                        <div className="text-center px-4">
-                                            <div className="w-20 h-20 mx-auto mb-4 rounded-full border border-cyan-900/70 bg-cyan-950/20 flex items-center justify-center text-cyan-400 text-3xl">↧</div>
-                                            <div className="text-slate-500 text-xs tracking-[0.25em] uppercase mb-3">Archivo → Texto → GitHub</div>
-                                            <p className="text-slate-500 text-sm max-w-xs mx-auto">Carga un vídeo para convertirlo en una fuente reutilizable.</p>
-                                        </div>
-                                    )}
+                                    <input
+                                        type="file"
+                                        accept="video/*,audio/*"
+                                        onChange={handleFileChange}
+                                        className="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-cyan-500 file:text-slate-950 hover:file:bg-cyan-600"
+                                    />
 
-                                    {mediaFile && isVideo && previewUrl && (
-                                        <video src={previewUrl} controls className="w-full h-full object-contain bg-black" />
-                                    )}
-
-                                    {mediaFile && isAudio && previewUrl && (
-                                        <div className="w-full px-4 text-center">
-                                            <p className="text-xs text-slate-500 uppercase tracking-[0.25em] mb-4">Audio cargado</p>
-                                            <audio src={previewUrl} controls className="w-full" />
-                                        </div>
-                                    )}
-
-                                    {mediaFile && !isVideo && !isAudio && (
-                                        <div className="text-center text-slate-500 text-sm px-4">Archivo preparado para transcribir.</div>
+                                    {mediaFile && (
+                                        <p className="text-xs text-emerald-400 mt-3 font-medium truncate">{mediaFile.name}</p>
                                     )}
                                 </div>
 
-                                {loading && (
-                                    <div className="w-full bg-slate-950 rounded-full h-2 border border-slate-800 overflow-hidden shrink-0">
-                                        <div className="bg-cyan-500 h-2 transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div>
+                                {videoPreviewUrl && (
+                                    <div className="rounded-2xl overflow-hidden border border-slate-700 bg-black min-h-[220px] md:min-h-0 md:flex-1 md:max-h-[46dvh] lg:max-h-none">
+                                        <video src={videoPreviewUrl} controls className="w-full h-full object-contain" />
                                     </div>
                                 )}
 
-                                <button onClick={handleTranscribe} disabled={loading || !mediaFile} className="shrink-0 w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-cyan-900/20 disabled:opacity-50 text-base">
+                                {!videoPreviewUrl && (
+                                    <div className="hidden lg:flex rounded-2xl border border-dashed border-slate-700 bg-slate-950/50 flex-1 items-center justify-center text-slate-600 text-sm text-center px-6">
+                                        Carga un vídeo para ver la previsualización aquí.
+                                    </div>
+                                )}
+
+                                <button
+                                    onClick={handleTranscribe}
+                                    disabled={loading || !mediaFile}
+                                    className="shrink-0 w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-cyan-900/20 disabled:opacity-50"
+                                >
                                     {loading ? `Procesando... ${uploadProgress}%` : "Paso 3: Iniciar conversión"}
                                 </button>
+
+                                {loading && (
+                                    <div className="w-full bg-slate-950 rounded-full h-2 border border-slate-800 overflow-hidden">
+                                        <div
+                                            className="bg-cyan-500 h-2 transition-all duration-300"
+                                            style={{ width: `${uploadProgress}%` }}
+                                        ></div>
+                                    </div>
+                                )}
                             </section>
 
-                            <section className={`${hasOutput ? 'flex' : 'hidden lg:flex'} min-h-0 p-2 md:p-4 flex-col gap-2 md:gap-3 overflow-hidden`}>
+                            <section className="min-h-0 p-3 md:p-4 flex flex-col gap-3 md:overflow-hidden overflow-visible">
                                 {errorMsg && (
-                                    <div className="shrink-0 p-3 bg-red-950/40 border border-red-900/60 rounded-2xl text-red-200 text-xs font-mono whitespace-pre-wrap overflow-y-auto max-h-[42dvh] md:max-h-[35dvh]">
+                                    <div className="shrink-0 p-3 bg-red-950/40 border border-red-900/60 rounded-2xl text-red-200 text-xs font-mono whitespace-pre-wrap overflow-x-auto">
                                         <div className="font-bold uppercase tracking-wider text-red-400 mb-1">Error:</div>
                                         {errorMsg}
                                     </div>
                                 )}
 
                                 {saveMsg && (
-                                    <div className="shrink-0 p-3 bg-emerald-950/40 border border-emerald-900/60 rounded-2xl text-emerald-200 text-xs font-mono whitespace-pre-wrap overflow-y-auto max-h-[18dvh]">
+                                    <div className="shrink-0 p-3 bg-emerald-950/40 border border-emerald-900/60 rounded-2xl text-emerald-200 text-xs font-mono whitespace-pre-wrap overflow-x-auto">
                                         <div className="font-bold uppercase tracking-wider text-emerald-400 mb-1">Guardado:</div>
                                         {saveMsg}
                                     </div>
                                 )}
 
-                                {!hasOutput && (
-                                    <div className="hidden lg:flex flex-1 min-h-0 rounded-2xl border border-dashed border-slate-800 bg-slate-950/30 items-center justify-center text-slate-700 text-sm text-center px-8"></div>
+                                {!result && !errorMsg && (
+                                    <div className="flex-1 min-h-[220px] md:min-h-0 rounded-2xl border border-dashed border-slate-700 bg-slate-950/50 flex items-center justify-center text-slate-600 text-sm text-center px-8">
+                                        Paso 4: aquí aparecerá la transcripción para revisarla antes de copiar, descargar o guardar.
+                                    </div>
                                 )}
 
                                 {result && (
                                     <>
-                                        <div className="flex-1 min-h-0 bg-slate-950 p-3 md:p-4 rounded-2xl border border-slate-700 text-slate-100 text-sm whitespace-pre-wrap leading-relaxed overflow-y-auto shadow-inner">
+                                        <div className="flex-1 min-h-[260px] md:min-h-0 bg-slate-950 p-4 rounded-2xl border border-slate-700 text-slate-100 text-sm whitespace-pre-wrap leading-relaxed overflow-y-auto shadow-inner">
                                             {result}
                                         </div>
 
-                                        <div className="shrink-0 bg-slate-950 p-3 rounded-2xl border border-slate-700 space-y-2 text-center">
-                                            <div>
+                                        <div className="shrink-0 bg-slate-950 p-3 rounded-2xl border border-slate-700 space-y-3">
+                                            <div className="flex items-center justify-between gap-3">
                                                 <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest">Paso 5: Guardar como fuente</p>
-                                                <p className="text-xs text-slate-400 mt-1">Ajusta título, elige proyecto y guarda si quieres.</p>
+                                                <span className="text-[10px] text-slate-600">Beta funcional</span>
                                             </div>
-                                            <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Título sugerido automático" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-500 text-left" />
-                                            <select value={project} onChange={(e) => setProject(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 text-left">
+                                            <p className="text-xs text-slate-400">Puedes ajustar el título, elegir el proyecto relacionado y guardar la fuente en GitHub.</p>
+
+                                            <input
+                                                type="text"
+                                                value={title}
+                                                onChange={(e) => setTitle(e.target.value)}
+                                                placeholder="Título sugerido automático"
+                                                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-500"
+                                            />
+
+                                            <select
+                                                value={project}
+                                                onChange={(e) => setProject(e.target.value)}
+                                                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100"
+                                            >
                                                 <option value="">Sin proyecto asignado</option>
                                                 {reposLoading && <option value="">Cargando repositorios...</option>}
-                                                {!reposLoading && repos.map((repo) => <option key={repo.fullName} value={repo.name}>{repo.name}</option>)}
+                                                {!reposLoading && repos.map((repo) => (
+                                                    <option key={repo.fullName} value={repo.name}>{repo.name}</option>
+                                                ))}
                                             </select>
                                         </div>
 
-                                        <div className="shrink-0 grid grid-cols-3 gap-2 md:gap-3">
-                                            <button onClick={copyToClipboard} className="bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-xs font-bold border border-slate-700 transition-all">Copiar</button>
-                                            <button onClick={downloadTextFile} className="bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-xs font-bold border border-slate-700 transition-all">TXT</button>
-                                            <button onClick={saveToGitHub} disabled={saving} className="bg-emerald-700 hover:bg-emerald-600 py-3 rounded-xl text-xs font-bold border border-emerald-600 transition-all disabled:opacity-50">{saving ? "Guardando..." : "GitHub"}</button>
+                                        <div className="shrink-0 grid grid-cols-3 gap-3">
+                                            <button
+                                                onClick={copyToClipboard}
+                                                className="bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-xs font-bold border border-slate-700 transition-all"
+                                            >
+                                                Copiar
+                                            </button>
+
+                                            <button
+                                                onClick={downloadTextFile}
+                                                className="bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-xs font-bold border border-slate-700 transition-all"
+                                            >
+                                                Descargar TXT
+                                            </button>
+
+                                            <button
+                                                onClick={saveToGitHub}
+                                                disabled={saving}
+                                                className="bg-emerald-700 hover:bg-emerald-600 py-3 rounded-xl text-xs font-bold border border-emerald-600 transition-all disabled:opacity-50"
+                                            >
+                                                {saving ? "Guardando..." : "GitHub"}
+                                            </button>
                                         </div>
                                     </>
                                 )}
