@@ -19,6 +19,13 @@ const isTemporaryGeminiError = (error) => {
   return text.includes('503') || text.includes('unavailable') || text.includes('overloaded') || text.includes('try again later');
 };
 
+const githubHeaders = (token) => ({
+  Authorization: `Bearer ${token}`,
+  Accept: 'application/vnd.github+json',
+  'Content-Type': 'application/json',
+  'X-GitHub-Api-Version': '2022-11-28'
+});
+
 const sanitizeSlug = (value) => {
   return String(value || 'transcripcion')
     .normalize('NFD')
@@ -127,12 +134,11 @@ ${input}`
   }
 };
 
-const buildTranscriptMarkdown = ({ title, sourceUrl, platform, project, transcription, model, fileName, metadata }) => {
+const buildTranscriptMarkdown = ({ title, platform, project, transcription, model, fileName, metadata }) => {
   const now = new Date().toISOString();
   const cleanTitle = cleanText(metadata?.title || title) || 'Transcripción AETERNA';
   const cleanPlatform = cleanText(platform) || 'No especificada';
   const cleanProject = cleanText(project) || 'Sin proyecto asignado';
-  const cleanSourceUrl = cleanText(sourceUrl) || 'No especificada';
   const cleanFileName = cleanText(fileName) || 'No especificado';
   const cleanModel = cleanText(model) || 'No especificado';
   const cleanTranscript = cleanText(transcription);
@@ -148,7 +154,6 @@ const buildTranscriptMarkdown = ({ title, sourceUrl, platform, project, transcri
 
 - Fecha: ${now}
 - Plataforma: ${cleanPlatform}
-- URL original: ${cleanSourceUrl}
 - Proyecto relacionado: ${cleanProject}
 - Archivo original: ${cleanFileName}
 - Modelo de transcripción: ${cleanModel}
@@ -175,6 +180,46 @@ ${cleanTranscript}
 
 app.get('/', (req, res) => {
   res.json({ ok: true, service: 'AETERNA backend activo' });
+});
+
+app.get('/api/github-repos', async (req, res) => {
+  try {
+    const token = process.env.GITHUB_TOKEN;
+    if (!token) {
+      return res.status(500).json({
+        success: false,
+        error: 'Falta configurar GITHUB_TOKEN en Render.'
+      });
+    }
+
+    const response = await fetch('https://api.github.com/user/repos?per_page=100&sort=updated&affiliation=owner,collaborator,organization_member', {
+      headers: githubHeaders(token)
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data?.message || `GitHub respondió con estado ${response.status}`);
+    }
+
+    const repos = data
+      .filter(repo => repo && repo.name)
+      .map(repo => ({
+        name: repo.name,
+        fullName: repo.full_name,
+        private: !!repo.private,
+        updatedAt: repo.updated_at || null
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    res.json({ success: true, repos });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Error cargando repositorios de GitHub.'
+    });
+  }
 });
 
 app.post('/api/transcribe', upload.single('file'), async (req, res) => {
@@ -294,7 +339,7 @@ app.post('/api/save-transcript-to-github', async (req, res) => {
       });
     }
 
-    const { title, sourceUrl, platform, project, transcription, model, fileName } = req.body || {};
+    const { title, platform, project, transcription, model, fileName } = req.body || {};
 
     if (!transcription || !String(transcription).trim()) {
       return res.status(400).json({
@@ -313,7 +358,6 @@ app.post('/api/save-transcript-to-github', async (req, res) => {
 
     const markdown = buildTranscriptMarkdown({
       title,
-      sourceUrl,
       platform,
       project,
       transcription,
@@ -326,12 +370,7 @@ app.post('/api/save-transcript-to-github', async (req, res) => {
 
     const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(path).replace(/%2F/g, '/')}`, {
       method: 'PUT',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/vnd.github+json',
-        'Content-Type': 'application/json',
-        'X-GitHub-Api-Version': '2022-11-28'
-      },
+      headers: githubHeaders(token),
       body: JSON.stringify({
         message: `Add AETERNA transcript ${datePrefix} ${slug}`,
         content,
