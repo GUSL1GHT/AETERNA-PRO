@@ -14,9 +14,63 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+const stringifyError = (error) => {
+  return `${JSON.stringify(error || {})} ${String(error?.message || '')}`;
+};
+
 const isTemporaryGeminiError = (error) => {
-  const text = JSON.stringify(error || {}).toLowerCase() + ' ' + String(error?.message || '').toLowerCase();
-  return text.includes('503') || text.includes('unavailable') || text.includes('overloaded') || text.includes('try again later');
+  const text = stringifyError(error).toLowerCase();
+  return text.includes('503') || text.includes('unavailable') || text.includes('overloaded') || text.includes('try again later') || text.includes('429') || text.includes('resource_exhausted') || text.includes('quota exceeded') || text.includes('rate limit');
+};
+
+const isModelUnavailableError = (error) => {
+  const text = stringifyError(error).toLowerCase();
+  return text.includes('not found') || text.includes('not supported') || text.includes('model') && text.includes('not');
+};
+
+const extractRetrySeconds = (error) => {
+  const text = stringifyError(error);
+  const patterns = [
+    /retry\s+in\s+([0-9]+(?:\.[0-9]+)?)s/i,
+    /retryDelay"\s*:\s*"?([0-9]+(?:\.[0-9]+)?)s/i,
+    /retry_after"\s*:\s*"?([0-9]+(?:\.[0-9]+)?)/i
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) return Math.ceil(Number(match[1]));
+  }
+
+  return null;
+};
+
+const buildPublicGeminiError = (error) => {
+  const text = stringifyError(error).toLowerCase();
+  const retryAfterSeconds = extractRetrySeconds(error);
+
+  if (text.includes('429') || text.includes('resource_exhausted') || text.includes('quota exceeded') || text.includes('rate limit')) {
+    return {
+      status: 429,
+      retryAfterSeconds,
+      message: retryAfterSeconds
+        ? `Límite temporal de Gemini alcanzado. Espera ${retryAfterSeconds} segundos y vuelve a intentarlo.`
+        : 'Límite temporal de Gemini alcanzado. Espera unos minutos y vuelve a intentarlo.'
+    };
+  }
+
+  if (text.includes('503') || text.includes('unavailable') || text.includes('overloaded')) {
+    return {
+      status: 503,
+      retryAfterSeconds,
+      message: 'Gemini está saturado temporalmente. Espera un momento y vuelve a intentarlo.'
+    };
+  }
+
+  return {
+    status: 500,
+    retryAfterSeconds: null,
+    message: error.message || 'Error interno del servidor.'
+  };
 };
 
 const githubHeaders = (token) => ({
@@ -387,11 +441,11 @@ Reglas obligatorias:
 - No añadas títulos, introducciones, conclusiones, notas ni comentarios.
 - Devuelve únicamente la transcripción.`;
 
-    const models = ['gemini-2.5-flash-lite', 'gemini-2.5-flash'];
+    const models = ['gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash-lite'];
     let lastError = null;
 
     for (const model of models) {
-      for (let attempt = 1; attempt <= 3; attempt++) {
+      for (let attempt = 1; attempt <= 2; attempt++) {
         try {
           const response = await ai.models.generateContent({
             model,
@@ -418,11 +472,18 @@ Reglas obligatorias:
         } catch (error) {
           lastError = error;
 
+          if (isModelUnavailableError(error)) {
+            break;
+          }
+
           if (!isTemporaryGeminiError(error)) {
             throw error;
           }
 
-          await sleep(3000 * attempt);
+          const retrySeconds = Math.min(extractRetrySeconds(error) || 10 * attempt, 45);
+          if (attempt < 2) {
+            await sleep((retrySeconds + 1) * 1000);
+          }
         }
       }
     }
@@ -431,9 +492,11 @@ Reglas obligatorias:
 
   } catch (error) {
     console.error(error);
-    res.status(500).json({
+    const publicError = buildPublicGeminiError(error);
+    res.status(publicError.status).json({
       success: false,
-      error: error.message || 'Error interno del servidor.'
+      error: publicError.message,
+      retryAfterSeconds: publicError.retryAfterSeconds
     });
   } finally {
     if (filePath && fs.existsSync(filePath)) {
