@@ -12,7 +12,7 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
-<body class="bg-slate-950 text-slate-200">
+<body class="bg-slate-950 text-slate-200 overflow-hidden">
     <div id="root"></div>
 
     <script type="text/babel">
@@ -183,148 +183,170 @@
             };
 
             return (
-                <div className="min-h-screen p-4 flex items-center justify-center font-sans">
-                    <div className="max-w-md w-full bg-[#0d1521] border border-slate-800 rounded-3xl p-6 shadow-2xl">
-                        <h1 className="text-4xl font-light text-white text-center mb-1 tracking-[0.2em] uppercase">AETERNA</h1>
-                        <p className="text-[10px] text-slate-500 text-center mb-8 tracking-[0.4em] uppercase">Digital Synthesis</p>
-
-                        <p className="text-sm font-medium text-slate-200 text-center mb-8 px-4">
-                            Convierte vídeos en transcripciones y guárdalas como fuentes de conocimiento en GitHub.
-                        </p>
-
-                        <div className="flex flex-col gap-4 mb-8">
-                            <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest text-center border-b border-slate-800 pb-2">Paso 1: Obtén el archivo</p>
-
-                            <a
-                                href="https://snaptik.app/"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="w-full bg-[#00a86b] hover:bg-[#008f5a] text-white font-bold py-3.5 rounded-xl text-center text-sm transition-all shadow-md"
-                            >
-                                Descargar de TikTok
-                            </a>
-
-                            <a
-                                href="https://www.y2mate.is/"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3.5 rounded-xl text-center text-sm transition-all shadow-md"
-                            >
-                                Descargar de YouTube
-                            </a>
-                        </div>
-
-                        <div className="bg-slate-950 p-5 rounded-2xl border border-slate-700 text-center mb-6">
-                            <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest mb-4">Paso 2: Selecciona el vídeo o audio</p>
-
-                            <input
-                                type="file"
-                                accept="video/*,audio/*"
-                                onChange={handleFileChange}
-                                className="block w-full text-sm text-slate-300 file:mr-4 file:py-2.5 file:px-6 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-cyan-500 file:text-slate-950 hover:file:bg-cyan-600"
-                            />
-
-                            {mediaFile && (
-                                <p className="text-xs text-emerald-400 mt-3 font-medium truncate">{mediaFile.name}</p>
-                            )}
-                        </div>
-
-                        {videoPreviewUrl && (
-                            <div className="mb-6 rounded-2xl overflow-hidden border border-slate-700 bg-black">
-                                <video src={videoPreviewUrl} controls className="w-full h-auto" />
+                <div className="h-dvh w-screen overflow-hidden bg-slate-950 font-sans md:p-3 p-2">
+                    <div className="h-full max-w-6xl mx-auto bg-[#0d1521] border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+                        <header className="shrink-0 px-4 py-3 border-b border-slate-800 flex items-center justify-between gap-3">
+                            <div>
+                                <h1 className="text-2xl md:text-3xl font-light text-white tracking-[0.22em] uppercase leading-none">AETERNA</h1>
+                                <p className="text-[8px] md:text-[9px] text-slate-500 tracking-[0.35em] uppercase mt-1">Digital Synthesis</p>
                             </div>
-                        )}
+                            <p className="hidden md:block text-xs text-slate-400 text-right max-w-sm">
+                                Vídeo → transcripción → fuente GitHub
+                            </p>
+                        </header>
 
-                        <button
-                            onClick={handleTranscribe}
-                            disabled={loading || !mediaFile}
-                            className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-4 rounded-xl transition-all mb-8 shadow-lg shadow-cyan-900/20 disabled:opacity-50"
-                        >
-                            {loading ? `Procesando... ${uploadProgress}%` : "Iniciar Conversión"}
-                        </button>
+                        <main className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[390px_1fr] gap-0 overflow-hidden">
+                            <section className="min-h-0 lg:border-r border-slate-800 p-3 md:p-4 flex flex-col gap-3 overflow-y-auto">
+                                <div className="grid grid-cols-2 gap-3">
+                                    <a
+                                        href="https://snaptik.app/"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="bg-[#00a86b] hover:bg-[#008f5a] text-white font-bold py-3 rounded-xl text-center text-sm transition-all shadow-md"
+                                    >
+                                        TikTok
+                                    </a>
 
-                        {loading && (
-                            <div className="w-full bg-slate-950 rounded-full h-2 mb-6 border border-slate-800 overflow-hidden">
-                                <div
-                                    className="bg-cyan-500 h-2 transition-all duration-300"
-                                    style={{ width: `${uploadProgress}%` }}
-                                ></div>
-                            </div>
-                        )}
-
-                        {errorMsg && (
-                            <div className="mb-6 p-4 bg-red-950/40 border border-red-900/60 rounded-2xl text-red-200 text-xs font-mono whitespace-pre-wrap overflow-x-auto">
-                                <div className="font-bold uppercase tracking-wider text-red-400 mb-1">Error en Proceso:</div>
-                                {errorMsg}
-                            </div>
-                        )}
-
-                        {saveMsg && (
-                            <div className="mb-6 p-4 bg-emerald-950/40 border border-emerald-900/60 rounded-2xl text-emerald-200 text-xs font-mono whitespace-pre-wrap overflow-x-auto">
-                                <div className="font-bold uppercase tracking-wider text-emerald-400 mb-1">Guardado:</div>
-                                {saveMsg}
-                            </div>
-                        )}
-
-                        {result && (
-                            <div className="space-y-4">
-                                <div className="bg-slate-950 p-5 rounded-2xl border border-slate-700 text-slate-100 text-sm whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto shadow-inner">
-                                    {result}
+                                    <a
+                                        href="https://www.y2mate.is/"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl text-center text-sm transition-all shadow-md"
+                                    >
+                                        YouTube
+                                    </a>
                                 </div>
 
-                                <div className="bg-slate-950 p-4 rounded-2xl border border-slate-700 space-y-3">
-                                    <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest text-center">Guardar como fuente</p>
+                                <div className="bg-slate-950 p-4 rounded-2xl border border-slate-700 text-center">
+                                    <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest mb-3">Selecciona vídeo o audio</p>
 
                                     <input
-                                        type="text"
-                                        value={title}
-                                        onChange={(e) => setTitle(e.target.value)}
-                                        placeholder="Título sugerido automático"
-                                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-500"
+                                        type="file"
+                                        accept="video/*,audio/*"
+                                        onChange={handleFileChange}
+                                        className="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-cyan-500 file:text-slate-950 hover:file:bg-cyan-600"
                                     />
 
-                                    <select
-                                        value={project}
-                                        onChange={(e) => setProject(e.target.value)}
-                                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100"
-                                    >
-                                        <option value="">Sin proyecto asignado</option>
-                                        {reposLoading && <option value="">Cargando repositorios...</option>}
-                                        {!reposLoading && repos.map((repo) => (
-                                            <option key={repo.fullName} value={repo.name}>{repo.name}</option>
-                                        ))}
-                                    </select>
+                                    {mediaFile && (
+                                        <p className="text-xs text-emerald-400 mt-3 font-medium truncate">{mediaFile.name}</p>
+                                    )}
                                 </div>
 
-                                <div className="grid grid-cols-3 gap-3">
-                                    <button
-                                        onClick={copyToClipboard}
-                                        className="bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-xs font-bold border border-slate-700 transition-all"
-                                    >
-                                        Copiar
-                                    </button>
+                                {videoPreviewUrl && (
+                                    <div className="rounded-2xl overflow-hidden border border-slate-700 bg-black min-h-0 flex-1 max-h-[46dvh] lg:max-h-none">
+                                        <video src={videoPreviewUrl} controls className="w-full h-full object-contain" />
+                                    </div>
+                                )}
 
-                                    <button
-                                        onClick={downloadTextFile}
-                                        className="bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-xs font-bold border border-slate-700 transition-all"
-                                    >
-                                        Descargar
-                                    </button>
+                                {!videoPreviewUrl && (
+                                    <div className="hidden lg:flex rounded-2xl border border-dashed border-slate-700 bg-slate-950/50 flex-1 items-center justify-center text-slate-600 text-sm text-center px-6">
+                                        Carga un vídeo para ver la previsualización aquí.
+                                    </div>
+                                )}
 
-                                    <button
-                                        onClick={saveToGitHub}
-                                        disabled={saving}
-                                        className="bg-emerald-700 hover:bg-emerald-600 py-3 rounded-xl text-xs font-bold border border-emerald-600 transition-all disabled:opacity-50"
-                                    >
-                                        {saving ? "Guardando..." : "GitHub"}
-                                    </button>
-                                </div>
-                            </div>
-                        )}
+                                <button
+                                    onClick={handleTranscribe}
+                                    disabled={loading || !mediaFile}
+                                    className="shrink-0 w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-cyan-900/20 disabled:opacity-50"
+                                >
+                                    {loading ? `Procesando... ${uploadProgress}%` : "Iniciar Conversión"}
+                                </button>
 
-                        <div className="mt-10 text-center border-t border-slate-800 pt-6">
-                            <p className="text-[9px] text-slate-500 uppercase tracking-widest">Architected by GUSLIGHT</p>
-                        </div>
+                                {loading && (
+                                    <div className="w-full bg-slate-950 rounded-full h-2 border border-slate-800 overflow-hidden">
+                                        <div
+                                            className="bg-cyan-500 h-2 transition-all duration-300"
+                                            style={{ width: `${uploadProgress}%` }}
+                                        ></div>
+                                    </div>
+                                )}
+                            </section>
+
+                            <section className="min-h-0 p-3 md:p-4 flex flex-col gap-3 overflow-hidden">
+                                {errorMsg && (
+                                    <div className="shrink-0 p-3 bg-red-950/40 border border-red-900/60 rounded-2xl text-red-200 text-xs font-mono whitespace-pre-wrap overflow-x-auto">
+                                        <div className="font-bold uppercase tracking-wider text-red-400 mb-1">Error:</div>
+                                        {errorMsg}
+                                    </div>
+                                )}
+
+                                {saveMsg && (
+                                    <div className="shrink-0 p-3 bg-emerald-950/40 border border-emerald-900/60 rounded-2xl text-emerald-200 text-xs font-mono whitespace-pre-wrap overflow-x-auto">
+                                        <div className="font-bold uppercase tracking-wider text-emerald-400 mb-1">Guardado:</div>
+                                        {saveMsg}
+                                    </div>
+                                )}
+
+                                {!result && !errorMsg && (
+                                    <div className="flex-1 min-h-0 rounded-2xl border border-dashed border-slate-700 bg-slate-950/50 flex items-center justify-center text-slate-600 text-sm text-center px-8">
+                                        La transcripción aparecerá aquí después de convertir el archivo.
+                                    </div>
+                                )}
+
+                                {result && (
+                                    <>
+                                        <div className="flex-1 min-h-0 bg-slate-950 p-4 rounded-2xl border border-slate-700 text-slate-100 text-sm whitespace-pre-wrap leading-relaxed overflow-y-auto shadow-inner">
+                                            {result}
+                                        </div>
+
+                                        <div className="shrink-0 bg-slate-950 p-3 rounded-2xl border border-slate-700 space-y-3">
+                                            <div className="flex items-center justify-between gap-3">
+                                                <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest">Guardar como fuente</p>
+                                                <span className="text-[10px] text-slate-600">Beta funcional</span>
+                                            </div>
+
+                                            <input
+                                                type="text"
+                                                value={title}
+                                                onChange={(e) => setTitle(e.target.value)}
+                                                placeholder="Título sugerido automático"
+                                                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-500"
+                                            />
+
+                                            <select
+                                                value={project}
+                                                onChange={(e) => setProject(e.target.value)}
+                                                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100"
+                                            >
+                                                <option value="">Sin proyecto asignado</option>
+                                                {reposLoading && <option value="">Cargando repositorios...</option>}
+                                                {!reposLoading && repos.map((repo) => (
+                                                    <option key={repo.fullName} value={repo.name}>{repo.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div className="shrink-0 grid grid-cols-3 gap-3">
+                                            <button
+                                                onClick={copyToClipboard}
+                                                className="bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-xs font-bold border border-slate-700 transition-all"
+                                            >
+                                                Copiar
+                                            </button>
+
+                                            <button
+                                                onClick={downloadTextFile}
+                                                className="bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-xs font-bold border border-slate-700 transition-all"
+                                            >
+                                                Descargar
+                                            </button>
+
+                                            <button
+                                                onClick={saveToGitHub}
+                                                disabled={saving}
+                                                className="bg-emerald-700 hover:bg-emerald-600 py-3 rounded-xl text-xs font-bold border border-emerald-600 transition-all disabled:opacity-50"
+                                            >
+                                                {saving ? "Guardando..." : "GitHub"}
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
+                            </section>
+                        </main>
+
+                        <footer className="shrink-0 hidden md:block border-t border-slate-800 px-4 py-2 text-center">
+                            <p className="text-[8px] text-slate-600 uppercase tracking-[0.35em]">Architected by GUSLIGHT</p>
+                        </footer>
                     </div>
                 </div>
             );
