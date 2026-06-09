@@ -14,18 +14,23 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-const stringifyError = (error) => {
-  return `${JSON.stringify(error || {})} ${String(error?.message || '')}`;
-};
+const stringifyError = (error) => `${JSON.stringify(error || {})} ${String(error?.message || '')}`;
 
 const isTemporaryGeminiError = (error) => {
   const text = stringifyError(error).toLowerCase();
-  return text.includes('503') || text.includes('unavailable') || text.includes('overloaded') || text.includes('try again later') || text.includes('429') || text.includes('resource_exhausted') || text.includes('quota exceeded') || text.includes('rate limit');
+  return text.includes('503') ||
+    text.includes('unavailable') ||
+    text.includes('overloaded') ||
+    text.includes('try again later') ||
+    text.includes('429') ||
+    text.includes('resource_exhausted') ||
+    text.includes('quota exceeded') ||
+    text.includes('rate limit');
 };
 
 const isModelUnavailableError = (error) => {
   const text = stringifyError(error).toLowerCase();
-  return text.includes('not found') || text.includes('not supported') || text.includes('model') && text.includes('not');
+  return text.includes('not found') || text.includes('not supported') || (text.includes('model') && text.includes('not'));
 };
 
 const extractRetrySeconds = (error) => {
@@ -122,20 +127,32 @@ const isWeakTitle = (value) => {
   );
 };
 
-const parseJsonObject = (text) => {
-  const raw = cleanText(text);
-  const match = raw.match(/\{[\s\S]*\}/);
-  if (!match) return null;
+const titleCaseSoft = (value) => {
+  const text = cleanText(value)
+    .replace(/\s+/g, ' ')
+    .replace(/["“”]/g, '')
+    .slice(0, 90)
+    .trim();
 
-  try {
-    return JSON.parse(match[0]);
-  } catch (_) {
-    return null;
-  }
+  if (!text) return 'Transcripción AETERNA';
+  return text.charAt(0).toUpperCase() + text.slice(1);
 };
 
-const fallbackTitleFromTranscript = (transcription, fileName) => {
-  const text = cleanText(transcription).toLowerCase();
+const fallbackTitleFromTranscript = (transcription) => {
+  const raw = normalizeKnownTerms(transcription);
+  const text = raw.toLowerCase();
+
+  if (text.includes('spacex') && (text.includes('nasdaq') || text.includes('índice') || text.includes('indices') || text.includes('mercado'))) {
+    return 'SpaceX, Nasdaq y posible caída de mercado';
+  }
+
+  if (text.includes('semiconductores') && (text.includes('etf') || text.includes('nasdaq') || text.includes('caída'))) {
+    return 'Riesgo de caída en semiconductores y Nasdaq';
+  }
+
+  if (text.includes('kirby') && text.includes('papelera')) {
+    return 'Personalizar la papelera de Windows con Kirby';
+  }
 
   if (text.includes('windhawk') || text.includes('windhook')) {
     return 'Cambiar el menú Inicio de Windows 11 con Windhawk';
@@ -157,7 +174,26 @@ const fallbackTitleFromTranscript = (transcription, fileName) => {
     return 'Idea o tutorial relacionado con GitHub';
   }
 
-  return cleanText(fileName).replace(/\.[^/.]+$/, '') || 'Transcripción AETERNA';
+  const firstSentence = raw
+    .split(/[.!?\n]/)
+    .map(part => cleanText(part))
+    .find(part => part.length >= 20 && !isWeakTitle(part));
+
+  if (firstSentence) return titleCaseSoft(firstSentence);
+
+  return 'Transcripción AETERNA';
+};
+
+const parseJsonObject = (text) => {
+  const raw = cleanText(text);
+  const match = raw.match(/\{[\s\S]*\}/);
+  if (!match) return null;
+
+  try {
+    return JSON.parse(match[0]);
+  } catch (_) {
+    return null;
+  }
 };
 
 const buildFallbackTermAudit = (transcription) => {
@@ -191,9 +227,9 @@ const buildFallbackTermAudit = (transcription) => {
   };
 };
 
-const generateKnowledgeMetadata = async ({ title, transcription, fileName }) => {
+const generateKnowledgeMetadata = async ({ title, transcription }) => {
   const normalizedTranscript = normalizeKnownTerms(transcription);
-  const fallbackTitle = isWeakTitle(title) ? fallbackTitleFromTranscript(normalizedTranscript, fileName) : normalizeKnownTerms(title);
+  const fallbackTitle = isWeakTitle(title) ? fallbackTitleFromTranscript(normalizedTranscript) : normalizeKnownTerms(title);
   const fallbackAudit = buildFallbackTermAudit(transcription);
 
   const fallback = {
@@ -226,12 +262,7 @@ const generateKnowledgeMetadata = async ({ title, transcription, fileName }) => 
 Reglas:
 - El título debe describir lo que enseña o propone el vídeo.
 - No uses nombres basura de archivo como snaptik, y2mate, videoplayback o números.
-- No conviertas nombres raros de software en palabras comunes españolas.
-- Si aparece Windhook, WindHook o WindHawk, corrígelo como Windhawk si el contexto es Windows/mods/personalización.
-- Si aparece Pinocho, Pinocchio o parecido y el contexto habla de IA/software, marca como probable Pinokio.
-- Si aparece Pinokio, Voicebox, ElevenLabs, Ace Jam o Reclip, respeta esos nombres.
 - Si no estás seguro de un nombre de programa, no inventes: añádelo a doubtfulTerms.
-- technicalConfidence debe ser "alta" solo si no hay nombres técnicos dudosos.
 - Los tags deben ser simples, en minúsculas y útiles para buscar.
 - Devuelve solo JSON.
 
@@ -346,10 +377,7 @@ app.get('/api/github-repos', async (req, res) => {
   try {
     const token = process.env.GITHUB_TOKEN;
     if (!token) {
-      return res.status(500).json({
-        success: false,
-        error: 'Falta configurar GITHUB_TOKEN en Render.'
-      });
+      return res.status(500).json({ success: false, error: 'Falta configurar GITHUB_TOKEN en Render.' });
     }
 
     const response = await fetch('https://api.github.com/user/repos?per_page=100&sort=updated&affiliation=owner,collaborator,organization_member', {
@@ -364,21 +392,13 @@ app.get('/api/github-repos', async (req, res) => {
 
     const repos = data
       .filter(repo => repo && repo.name)
-      .map(repo => ({
-        name: repo.name,
-        fullName: repo.full_name,
-        private: !!repo.private,
-        updatedAt: repo.updated_at || null
-      }))
+      .map(repo => ({ name: repo.name, fullName: repo.full_name, private: !!repo.private, updatedAt: repo.updated_at || null }))
       .sort((a, b) => a.name.localeCompare(b.name));
 
     res.json({ success: true, repos });
   } catch (error) {
     console.error(error);
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Error cargando repositorios de GitHub.'
-    });
+    res.status(500).json({ success: false, error: error.message || 'Error cargando repositorios de GitHub.' });
   }
 });
 
@@ -387,17 +407,11 @@ app.post('/api/transcribe', upload.single('file'), async (req, res) => {
 
   try {
     if (!process.env.GEMINI_API_KEY) {
-      return res.status(500).json({
-        success: false,
-        error: 'Falta configurar GEMINI_API_KEY en el servidor.'
-      });
+      return res.status(500).json({ success: false, error: 'Falta configurar GEMINI_API_KEY en el servidor.' });
     }
 
     if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        error: 'No se ha seleccionado ningún archivo.'
-      });
+      return res.status(400).json({ success: false, error: 'No se ha seleccionado ningún archivo.' });
     }
 
     filePath = req.file.path;
@@ -405,9 +419,7 @@ app.post('/api/transcribe', upload.single('file'), async (req, res) => {
 
     const uploadResult = await ai.files.upload({
       file: filePath,
-      config: {
-        mimeType: mimeType
-      }
+      config: { mimeType }
     });
 
     let fileState = await ai.files.get({ name: uploadResult.name });
@@ -428,67 +440,48 @@ Reglas obligatorias:
 - No reescribas.
 - No mejores el estilo.
 - No conviertas la transcripción en una explicación.
-- No elimines repeticiones, muletillas, pausas naturales ni frases incompletas si se escuchan.
 - Mantén el orden exacto del discurso.
 - Conserva nombres propios, marcas, herramientas, menús, programas y términos técnicos tal como se oigan.
 - No conviertas nombres raros de software en palabras comunes españolas.
 - Si una palabra suena a nombre de app, modelo, web, plugin, librería, IA o programa, consérvala como nombre propio si es posible.
 - Si oyes Windhook, WindHook o WindHawk y el contexto es Windows/mods/personalización, escribe Windhawk.
 - Si oyes Pinocho, Pinocchio o parecido y el contexto habla de instalar IA/software local, escribe Pinokio.
-- Mantén expresiones coloquiales si aparecen en el audio.
 - Si una palabra no se entiende, escribe [inaudible].
-- Si dudas entre dos palabras, usa la más probable por contexto.
 - No añadas títulos, introducciones, conclusiones, notas ni comentarios.
 - Devuelve únicamente la transcripción.`;
 
-    const models = ['gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash-lite'];
+    const models = ['gemini-2.5-flash-lite', 'gemini-2.5-flash'];
     let lastError = null;
 
     for (const model of models) {
-      for (let attempt = 1; attempt <= 2; attempt++) {
-        try {
-          const response = await ai.models.generateContent({
-            model,
-            contents: createUserContent([
-              createPartFromUri(uploadResult.uri, uploadResult.mimeType),
-              prompt
-            ])
-          });
+      try {
+        const response = await ai.models.generateContent({
+          model,
+          contents: createUserContent([
+            createPartFromUri(uploadResult.uri, uploadResult.mimeType),
+            prompt
+          ])
+        });
 
-          const transcription = normalizeKnownTerms(response.text || '');
-          const metadata = await generateKnowledgeMetadata({
-            title: '',
-            transcription,
-            fileName: req.file.originalname
-          });
+        const transcription = normalizeKnownTerms(response.text || '');
+        const suggestedTitle = fallbackTitleFromTranscript(transcription);
 
-          return res.json({
-            success: true,
-            model,
-            fileName: req.file.originalname,
-            suggestedTitle: metadata.title,
-            transcription
-          });
-        } catch (error) {
-          lastError = error;
-
-          if (isModelUnavailableError(error)) {
-            break;
-          }
-
-          if (!isTemporaryGeminiError(error)) {
-            throw error;
-          }
-
-          const retrySeconds = Math.min(extractRetrySeconds(error) || 10 * attempt, 45);
-          if (attempt < 2) {
-            await sleep((retrySeconds + 1) * 1000);
-          }
-        }
+        return res.json({
+          success: true,
+          model,
+          fileName: req.file.originalname,
+          suggestedTitle,
+          transcription
+        });
+      } catch (error) {
+        lastError = error;
+        if (isModelUnavailableError(error)) continue;
+        if (isTemporaryGeminiError(error)) continue;
+        throw error;
       }
     }
 
-    throw lastError || new Error('Gemini no ha respondido después de varios intentos.');
+    throw lastError || new Error('Gemini no ha respondido.');
 
   } catch (error) {
     console.error(error);
@@ -514,39 +507,24 @@ app.post('/api/save-transcript-to-github', async (req, res) => {
     const basePath = (process.env.GITHUB_TRANSCRIPTS_PATH || 'sources/aeterna/inbox').replace(/^\/+|\/+$/g, '');
 
     if (!token) {
-      return res.status(500).json({
-        success: false,
-        error: 'Falta configurar GITHUB_TOKEN en Render.'
-      });
+      return res.status(500).json({ success: false, error: 'Falta configurar GITHUB_TOKEN en Render.' });
     }
 
     const { title, platform, project, transcription, model, fileName } = req.body || {};
 
     if (!transcription || !String(transcription).trim()) {
-      return res.status(400).json({
-        success: false,
-        error: 'No hay transcripción para guardar.'
-      });
+      return res.status(400).json({ success: false, error: 'No hay transcripción para guardar.' });
     }
 
-    const metadata = await generateKnowledgeMetadata({ title, transcription, fileName });
+    const metadata = await generateKnowledgeMetadata({ title, transcription });
 
     const now = new Date();
     const datePrefix = now.toISOString().slice(0, 10);
     const timePrefix = now.toISOString().slice(11, 19).replace(/:/g, '');
-    const slug = sanitizeSlug(metadata.title || title || fileName || 'transcripcion-aeterna');
+    const slug = sanitizeSlug(metadata.title || title || 'transcripcion-aeterna');
     const path = `${basePath}/${datePrefix}_${timePrefix}_${slug}.md`;
 
-    const markdown = buildTranscriptMarkdown({
-      title,
-      platform,
-      project,
-      transcription,
-      model,
-      fileName,
-      metadata
-    });
-
+    const markdown = buildTranscriptMarkdown({ title, platform, project, transcription, model, fileName, metadata });
     const content = Buffer.from(markdown, 'utf8').toString('base64');
 
     const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(path).replace(/%2F/g, '/')}`, {
@@ -578,10 +556,7 @@ app.post('/api/save-transcript-to-github', async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({
-      success: false,
-      error: error.message || 'Error guardando en GitHub.'
-    });
+    res.status(500).json({ success: false, error: error.message || 'Error guardando en GitHub.' });
   }
 });
 
