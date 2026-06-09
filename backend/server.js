@@ -38,6 +38,18 @@ const sanitizeSlug = (value) => {
 
 const cleanText = (value) => String(value || '').replace(/\r\n/g, '\n').trim();
 
+const normalizeKnownTerms = (value) => {
+  return cleanText(value)
+    .replace(/\bWind\s*Hook\b/gi, 'Windhawk')
+    .replace(/\bWindhook\b/gi, 'Windhawk')
+    .replace(/\bWindHawk\b/g, 'Windhawk')
+    .replace(/\bPinokio\b/gi, 'Pinokio')
+    .replace(/\bVoicebox\b/gi, 'Voicebox')
+    .replace(/\bEleven\s*Labs\b/gi, 'ElevenLabs')
+    .replace(/\bAce\s*Jam\b/gi, 'Ace Jam')
+    .replace(/\bReclip\b/gi, 'Reclip');
+};
+
 const isWeakTitle = (value) => {
   const text = cleanText(value).toLowerCase();
   if (!text) return true;
@@ -72,6 +84,10 @@ const fallbackTitleFromTranscript = (transcription, fileName) => {
     return 'Cambiar el menú Inicio de Windows 11 con Windhawk';
   }
 
+  if (text.includes('pinokio') || text.includes('voicebox') || text.includes('elevenlabs')) {
+    return 'Instalar herramientas de IA local con Pinokio';
+  }
+
   if (text.includes('windows 11') && text.includes('menú')) {
     return 'Tutorial de personalización de Windows 11';
   }
@@ -88,7 +104,8 @@ const fallbackTitleFromTranscript = (transcription, fileName) => {
 };
 
 const generateKnowledgeMetadata = async ({ title, transcription, fileName }) => {
-  const fallbackTitle = isWeakTitle(title) ? fallbackTitleFromTranscript(transcription, fileName) : cleanText(title);
+  const normalizedTranscript = normalizeKnownTerms(transcription);
+  const fallbackTitle = isWeakTitle(title) ? fallbackTitleFromTranscript(normalizedTranscript, fileName) : normalizeKnownTerms(title);
 
   const fallback = {
     title: fallbackTitle,
@@ -98,7 +115,7 @@ const generateKnowledgeMetadata = async ({ title, transcription, fileName }) => 
   };
 
   try {
-    const input = cleanText(transcription).slice(0, 6000);
+    const input = normalizedTranscript.slice(0, 6000);
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-lite',
       contents: `Analiza esta transcripción y devuelve SOLO JSON válido con esta forma exacta:
@@ -112,6 +129,8 @@ const generateKnowledgeMetadata = async ({ title, transcription, fileName }) => 
 Reglas:
 - El título debe describir lo que enseña o propone el vídeo.
 - No uses nombres basura de archivo como snaptik, y2mate, videoplayback o números.
+- Si aparece Windhook, WindHook o WindHawk, corrígelo como Windhawk.
+- Si aparece Pinokio, Voicebox, ElevenLabs, Ace Jam o Reclip, respeta esos nombres.
 - Los tags deben ser simples, en minúsculas y útiles para buscar.
 - Devuelve solo JSON.
 
@@ -122,12 +141,12 @@ ${input}`
     const parsed = parseJsonObject(response.text || '');
     if (!parsed) return fallback;
 
-    const generatedTitle = cleanText(parsed.title);
+    const generatedTitle = normalizeKnownTerms(parsed.title);
     return {
       title: isWeakTitle(generatedTitle) ? fallback.title : generatedTitle,
-      summary: cleanText(parsed.summary) || fallback.summary,
+      summary: normalizeKnownTerms(parsed.summary) || fallback.summary,
       tags: Array.isArray(parsed.tags) && parsed.tags.length ? parsed.tags.map(tag => sanitizeSlug(tag)).filter(Boolean).slice(0, 8) : fallback.tags,
-      ideas: Array.isArray(parsed.ideas) && parsed.ideas.length ? parsed.ideas.map(cleanText).filter(Boolean).slice(0, 5) : fallback.ideas
+      ideas: Array.isArray(parsed.ideas) && parsed.ideas.length ? parsed.ideas.map(normalizeKnownTerms).filter(Boolean).slice(0, 5) : fallback.ideas
     };
   } catch (_) {
     return fallback;
@@ -136,16 +155,16 @@ ${input}`
 
 const buildTranscriptMarkdown = ({ title, platform, project, transcription, model, fileName, metadata }) => {
   const now = new Date().toISOString();
-  const cleanTitle = cleanText(metadata?.title || title) || 'Transcripción AETERNA';
+  const cleanTitle = normalizeKnownTerms(metadata?.title || title) || 'Transcripción AETERNA';
   const cleanPlatform = cleanText(platform) || 'No especificada';
   const cleanProject = cleanText(project) || 'Sin proyecto asignado';
   const cleanFileName = cleanText(fileName) || 'No especificado';
   const cleanModel = cleanText(model) || 'No especificado';
-  const cleanTranscript = cleanText(transcription);
-  const cleanSummary = cleanText(metadata?.summary) || 'Pendiente de revisar.';
+  const cleanTranscript = normalizeKnownTerms(transcription);
+  const cleanSummary = normalizeKnownTerms(metadata?.summary) || 'Pendiente de revisar.';
   const cleanTags = Array.isArray(metadata?.tags) && metadata.tags.length ? metadata.tags.join(', ') : 'aeterna, transcripcion';
   const cleanIdeas = Array.isArray(metadata?.ideas) && metadata.ideas.length
-    ? metadata.ideas.map((idea) => `- ${cleanText(idea)}`).join('\n')
+    ? metadata.ideas.map((idea) => `- ${normalizeKnownTerms(idea)}`).join('\n')
     : '- Revisar la transcripción y decidir si se convierte en guía, mejora o tarea.';
 
   return `# ${cleanTitle}
@@ -271,6 +290,7 @@ Reglas obligatorias:
 - No elimines repeticiones, muletillas, pausas naturales ni frases incompletas si se escuchan.
 - Mantén el orden exacto del discurso.
 - Conserva nombres propios, marcas, herramientas, menús, programas y términos técnicos tal como se oigan.
+- Si oyes Windhook, WindHook o WindHawk y el contexto es Windows/mods/personalización, escribe Windhawk.
 - Mantén expresiones coloquiales si aparecen en el audio.
 - Si una palabra no se entiende, escribe [inaudible].
 - Si dudas entre dos palabras, usa la más probable por contexto.
@@ -291,11 +311,19 @@ Reglas obligatorias:
             ])
           });
 
+          const transcription = normalizeKnownTerms(response.text || '');
+          const metadata = await generateKnowledgeMetadata({
+            title: '',
+            transcription,
+            fileName: req.file.originalname
+          });
+
           return res.json({
             success: true,
             model,
             fileName: req.file.originalname,
-            transcription: (response.text || '').trim()
+            suggestedTitle: metadata.title,
+            transcription
           });
         } catch (error) {
           lastError = error;
