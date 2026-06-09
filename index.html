@@ -234,14 +234,8 @@
                                 </div>
 
                                 {videoPreviewUrl && (
-                                    <div className="rounded-2xl overflow-hidden border border-slate-700 bg-black min-h-[220px] md:min-h-0 md:flex-1 md:max-h-[46dvh] lg:max-h-none">
+                                    <div className="lg:hidden rounded-2xl overflow-hidden border border-slate-700 bg-black max-h-[38dvh]">
                                         <video src={videoPreviewUrl} controls className="w-full h-full object-contain" />
-                                    </div>
-                                )}
-
-                                {!videoPreviewUrl && (
-                                    <div className="hidden lg:flex rounded-2xl border border-dashed border-slate-700 bg-slate-950/50 flex-1 items-center justify-center text-slate-600 text-sm text-center px-6">
-                                        Carga un vídeo para ver la previsualización aquí.
                                     </div>
                                 )}
 
@@ -261,6 +255,10 @@
                                         ></div>
                                     </div>
                                 )}
+
+                                <div className="hidden lg:flex rounded-2xl border border-dashed border-slate-700 bg-slate-950/50 flex-1 items-center justify-center text-slate-600 text-sm text-center px-6">
+                                    La previsualización aparece a la derecha.
+                                </div>
                             </section>
 
                             <section className="min-h-0 p-3 md:p-4 flex flex-col gap-3 md:overflow-hidden overflow-visible">
@@ -278,9 +276,15 @@
                                     </div>
                                 )}
 
-                                {!result && !errorMsg && (
+                                {!result && !errorMsg && videoPreviewUrl && (
+                                    <div className="hidden lg:flex flex-1 min-h-0 rounded-2xl border border-slate-700 bg-black overflow-hidden items-center justify-center">
+                                        <video src={videoPreviewUrl} controls className="w-full h-full object-contain" />
+                                    </div>
+                                )}
+
+                                {!result && !errorMsg && !videoPreviewUrl && (
                                     <div className="flex-1 min-h-[220px] md:min-h-0 rounded-2xl border border-dashed border-slate-700 bg-slate-950/50 flex items-center justify-center text-slate-600 text-sm text-center px-8">
-                                        Paso 4: aquí aparecerá la transcripción para revisarla.
+                                        Paso 4: aquí aparecerá la previsualización del vídeo y después la transcripción.
                                     </div>
                                 )}
 
