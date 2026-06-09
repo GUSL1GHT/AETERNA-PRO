@@ -62,7 +62,22 @@ app.post('/api/transcribe', upload.single('file'), async (req, res) => {
       throw new Error(`El archivo falló con estado: ${fileState.state}`);
     }
 
-    const prompt = 'Transcribe el archivo adjunto. Solo devuelve el texto literal, sin frases introductorias ni aclaraciones.';
+    const prompt = `Transcribe el audio o vídeo de forma literal, completa y en español de España.
+
+Reglas obligatorias:
+- No resumas.
+- No reescribas.
+- No mejores el estilo.
+- No conviertas la transcripción en una explicación.
+- No elimines repeticiones, muletillas, pausas naturales ni frases incompletas si se escuchan.
+- Mantén el orden exacto del discurso.
+- Conserva nombres propios, marcas, herramientas, menús, programas y términos técnicos tal como se oigan.
+- Mantén expresiones coloquiales si aparecen en el audio.
+- Si una palabra no se entiende, escribe [inaudible].
+- Si dudas entre dos palabras, usa la más probable por contexto.
+- No añadas títulos, introducciones, conclusiones, notas ni comentarios.
+- Devuelve únicamente la transcripción.`;
+
     const models = ['gemini-2.5-flash-lite', 'gemini-2.5-flash'];
     let lastError = null;
 
