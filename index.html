@@ -171,7 +171,7 @@
 
             return (
                 <div className="h-dvh w-screen bg-slate-950 font-sans p-2 md:p-3 overflow-hidden">
-                    <div className="relative h-full max-w-6xl mx-auto bg-[#0d1521] border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+                    <div className="h-full max-w-6xl mx-auto bg-[#0d1521] border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
                         <header className="shrink-0 px-3 py-2 md:px-4 md:py-3 border-b border-slate-800 text-center">
                             <h1 className="text-2xl md:text-4xl font-light text-white tracking-[0.24em] uppercase leading-none">AETERNA</h1>
                             <p className="text-[8px] md:text-[9px] text-slate-500 tracking-[0.35em] uppercase mt-1">Digital Synthesis</p>
@@ -280,10 +280,10 @@
                             </section>
                         </main>
 
-                        <footer className="shrink-0 hidden md:block border-t border-slate-800 px-4 py-2 text-center">
+                        <footer className="shrink-0 border-t border-slate-800 px-4 py-2 text-center relative">
                             <p className="text-[8px] text-slate-600 uppercase tracking-[0.35em]">Architected by GUSLIGHT</p>
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[7px] md:text-[8px] text-slate-600 opacity-70 tracking-[0.12em] pointer-events-none">Beta v1.0</span>
                         </footer>
-                        <span className="absolute bottom-2 right-3 text-[8px] md:text-[9px] text-slate-600 opacity-70 tracking-[0.16em] pointer-events-none">Beta v1.0</span>
                     </div>
                 </div>
             );
