@@ -26,6 +26,7 @@
             const [result, setResult] = useState(null);
             const [resultMeta, setResultMeta] = useState(null);
             const [mediaFile, setMediaFile] = useState(null);
+            const [previewUrl, setPreviewUrl] = useState(null);
             const [errorMsg, setErrorMsg] = useState(null);
             const [saveMsg, setSaveMsg] = useState(null);
             const [uploadProgress, setUploadProgress] = useState(0);
@@ -63,6 +64,9 @@
                 setUploadProgress(0);
                 setMediaFile(file);
                 setTitle("");
+
+                if (previewUrl) URL.revokeObjectURL(previewUrl);
+                setPreviewUrl(URL.createObjectURL(file));
             };
 
             const handleTranscribe = () => {
@@ -165,6 +169,8 @@
             };
 
             const hasOutput = !!result || !!errorMsg || !!saveMsg;
+            const isVideo = mediaFile?.type?.startsWith("video/");
+            const isAudio = mediaFile?.type?.startsWith("audio/");
 
             return (
                 <div className="h-dvh w-screen bg-slate-950 font-sans p-2 md:p-3 overflow-hidden">
@@ -202,6 +208,32 @@
                                         <div className="bg-cyan-500 h-2 transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div>
                                     </div>
                                 )}
+
+                                <div className="rounded-2xl border border-slate-800 bg-slate-950/45 flex-1 min-h-0 flex items-center justify-center overflow-hidden">
+                                    {!mediaFile && (
+                                        <div className="text-center px-4">
+                                            <div className="text-slate-500 text-xs tracking-[0.25em] uppercase mb-3">Flujo AETERNA</div>
+                                            <div className="flex items-center justify-center gap-2 text-slate-400 text-sm">
+                                                <span>Archivo</span><span className="text-cyan-500">→</span><span>Texto</span><span className="text-cyan-500">→</span><span>GitHub</span>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {mediaFile && isVideo && previewUrl && (
+                                        <video src={previewUrl} controls className="w-full h-full object-contain bg-black" />
+                                    )}
+
+                                    {mediaFile && isAudio && previewUrl && (
+                                        <div className="w-full px-4 text-center">
+                                            <p className="text-xs text-slate-500 uppercase tracking-[0.25em] mb-4">Audio cargado</p>
+                                            <audio src={previewUrl} controls className="w-full" />
+                                        </div>
+                                    )}
+
+                                    {mediaFile && !isVideo && !isAudio && (
+                                        <div className="text-center text-slate-500 text-sm px-4">Archivo preparado para transcribir.</div>
+                                    )}
+                                </div>
                             </section>
 
                             <section className={`${hasOutput ? 'flex' : 'hidden lg:flex'} min-h-0 p-2 md:p-4 flex-col gap-2 md:gap-3 overflow-hidden`}>
