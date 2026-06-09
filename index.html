@@ -34,6 +34,7 @@
             const [sourceUrl, setSourceUrl] = useState("");
             const [platform, setPlatform] = useState("TikTok");
             const [project, setProject] = useState("");
+            const [showAdvanced, setShowAdvanced] = useState(false);
 
             const handleFileChange = (e) => {
                 const file = e.target.files[0];
@@ -45,10 +46,6 @@
                 setResultMeta(null);
                 setUploadProgress(0);
                 setMediaFile(file);
-
-                if (!title) {
-                    setTitle(file.name.replace(/\.[^/.]+$/, ""));
-                }
 
                 if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
                 setVideoPreviewUrl(URL.createObjectURL(file));
@@ -171,7 +168,7 @@
                         <p className="text-[10px] text-slate-500 text-center mb-8 tracking-[0.4em] uppercase">Digital Synthesis</p>
 
                         <p className="text-sm font-medium text-slate-200 text-center mb-8 px-4">
-                            Descarga tu contenido, cárgalo aquí y obtén una fuente de conocimiento guardable en GitHub.
+                            Convierte vídeos en transcripciones y guárdalas como fuentes de conocimiento en GitHub.
                         </p>
 
                         <div className="flex flex-col gap-4 mb-8">
@@ -197,7 +194,7 @@
                         </div>
 
                         <div className="bg-slate-950 p-5 rounded-2xl border border-slate-700 text-center mb-6">
-                            <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest mb-4">Paso 2: Selección de archivo</p>
+                            <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest mb-4">Paso 2: Selecciona el vídeo o audio</p>
 
                             <input
                                 type="file"
@@ -211,44 +208,54 @@
                             )}
                         </div>
 
-                        <div className="bg-slate-950 p-5 rounded-2xl border border-slate-700 mb-6 space-y-3">
-                            <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest text-center">Paso 3: Datos para GitHub</p>
+                        <button
+                            type="button"
+                            onClick={() => setShowAdvanced(!showAdvanced)}
+                            className="w-full mb-6 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 py-3 rounded-xl text-xs font-bold uppercase tracking-widest transition-all"
+                        >
+                            {showAdvanced ? "Ocultar opciones avanzadas" : "Opciones avanzadas para GitHub"}
+                        </button>
 
-                            <input
-                                type="text"
-                                value={title}
-                                onChange={(e) => setTitle(e.target.value)}
-                                placeholder="Título de la fuente"
-                                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-500"
-                            />
+                        {showAdvanced && (
+                            <div className="bg-slate-950 p-5 rounded-2xl border border-slate-700 mb-6 space-y-3">
+                                <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest text-center">Opcional: datos manuales</p>
 
-                            <input
-                                type="text"
-                                value={project}
-                                onChange={(e) => setProject(e.target.value)}
-                                placeholder="Proyecto relacionado"
-                                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-500"
-                            />
+                                <input
+                                    type="text"
+                                    value={title}
+                                    onChange={(e) => setTitle(e.target.value)}
+                                    placeholder="Título manual opcional"
+                                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-500"
+                                />
 
-                            <input
-                                type="text"
-                                value={sourceUrl}
-                                onChange={(e) => setSourceUrl(e.target.value)}
-                                placeholder="URL original opcional"
-                                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-500"
-                            />
+                                <input
+                                    type="text"
+                                    value={project}
+                                    onChange={(e) => setProject(e.target.value)}
+                                    placeholder="Proyecto relacionado opcional"
+                                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-500"
+                                />
 
-                            <select
-                                value={platform}
-                                onChange={(e) => setPlatform(e.target.value)}
-                                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100"
-                            >
-                                <option>TikTok</option>
-                                <option>YouTube</option>
-                                <option>Instagram</option>
-                                <option>Otro</option>
-                            </select>
-                        </div>
+                                <input
+                                    type="text"
+                                    value={sourceUrl}
+                                    onChange={(e) => setSourceUrl(e.target.value)}
+                                    placeholder="URL original opcional"
+                                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-500"
+                                />
+
+                                <select
+                                    value={platform}
+                                    onChange={(e) => setPlatform(e.target.value)}
+                                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100"
+                                >
+                                    <option>TikTok</option>
+                                    <option>YouTube</option>
+                                    <option>Instagram</option>
+                                    <option>Otro</option>
+                                </select>
+                            </div>
+                        )}
 
                         {videoPreviewUrl && (
                             <div className="mb-6 rounded-2xl overflow-hidden border border-slate-700 bg-black">
