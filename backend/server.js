@@ -31,15 +31,116 @@ const sanitizeSlug = (value) => {
 
 const cleanText = (value) => String(value || '').replace(/\r\n/g, '\n').trim();
 
-const buildTranscriptMarkdown = ({ title, sourceUrl, platform, project, transcription, model, fileName }) => {
+const isWeakTitle = (value) => {
+  const text = cleanText(value).toLowerCase();
+  if (!text) return true;
+
+  return (
+    text.includes('snaptik') ||
+    text.includes('y2mate') ||
+    text.includes('videoplayback') ||
+    text.includes('download') ||
+    text.includes('tiktok') ||
+    /^\d+$/.test(text) ||
+    text.length < 8
+  );
+};
+
+const parseJsonObject = (text) => {
+  const raw = cleanText(text);
+  const match = raw.match(/\{[\s\S]*\}/);
+  if (!match) return null;
+
+  try {
+    return JSON.parse(match[0]);
+  } catch (_) {
+    return null;
+  }
+};
+
+const fallbackTitleFromTranscript = (transcription, fileName) => {
+  const text = cleanText(transcription).toLowerCase();
+
+  if (text.includes('windhawk') || text.includes('windhook')) {
+    return 'Cambiar el menú Inicio de Windows 11 con Windhawk';
+  }
+
+  if (text.includes('windows 11') && text.includes('menú')) {
+    return 'Tutorial de personalización de Windows 11';
+  }
+
+  if (text.includes('discord')) {
+    return 'Idea o tutorial relacionado con Discord';
+  }
+
+  if (text.includes('github')) {
+    return 'Idea o tutorial relacionado con GitHub';
+  }
+
+  return cleanText(fileName).replace(/\.[^/.]+$/, '') || 'Transcripción AETERNA';
+};
+
+const generateKnowledgeMetadata = async ({ title, transcription, fileName }) => {
+  const fallbackTitle = isWeakTitle(title) ? fallbackTitleFromTranscript(transcription, fileName) : cleanText(title);
+
+  const fallback = {
+    title: fallbackTitle,
+    summary: 'Pendiente de revisar.',
+    tags: ['aeterna', 'transcripcion'],
+    ideas: ['Revisar la transcripción y decidir si se convierte en guía, mejora o tarea.']
+  };
+
+  try {
+    const input = cleanText(transcription).slice(0, 6000);
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash-lite',
+      contents: `Analiza esta transcripción y devuelve SOLO JSON válido con esta forma exacta:
+{
+  "title": "título útil y corto en español de España",
+  "summary": "resumen de 1 frase",
+  "tags": ["tag1", "tag2", "tag3"],
+  "ideas": ["idea práctica 1", "idea práctica 2"]
+}
+
+Reglas:
+- El título debe describir lo que enseña o propone el vídeo.
+- No uses nombres basura de archivo como snaptik, y2mate, videoplayback o números.
+- Los tags deben ser simples, en minúsculas y útiles para buscar.
+- Devuelve solo JSON.
+
+Transcripción:
+${input}`
+    });
+
+    const parsed = parseJsonObject(response.text || '');
+    if (!parsed) return fallback;
+
+    const generatedTitle = cleanText(parsed.title);
+    return {
+      title: isWeakTitle(generatedTitle) ? fallback.title : generatedTitle,
+      summary: cleanText(parsed.summary) || fallback.summary,
+      tags: Array.isArray(parsed.tags) && parsed.tags.length ? parsed.tags.map(tag => sanitizeSlug(tag)).filter(Boolean).slice(0, 8) : fallback.tags,
+      ideas: Array.isArray(parsed.ideas) && parsed.ideas.length ? parsed.ideas.map(cleanText).filter(Boolean).slice(0, 5) : fallback.ideas
+    };
+  } catch (_) {
+    return fallback;
+  }
+};
+
+const buildTranscriptMarkdown = ({ title, sourceUrl, platform, project, transcription, model, fileName, metadata }) => {
   const now = new Date().toISOString();
-  const cleanTitle = cleanText(title) || 'Transcripción AETERNA';
+  const cleanTitle = cleanText(metadata?.title || title) || 'Transcripción AETERNA';
   const cleanPlatform = cleanText(platform) || 'No especificada';
   const cleanProject = cleanText(project) || 'Sin proyecto asignado';
   const cleanSourceUrl = cleanText(sourceUrl) || 'No especificada';
   const cleanFileName = cleanText(fileName) || 'No especificado';
   const cleanModel = cleanText(model) || 'No especificado';
   const cleanTranscript = cleanText(transcription);
+  const cleanSummary = cleanText(metadata?.summary) || 'Pendiente de revisar.';
+  const cleanTags = Array.isArray(metadata?.tags) && metadata.tags.length ? metadata.tags.join(', ') : 'aeterna, transcripcion';
+  const cleanIdeas = Array.isArray(metadata?.ideas) && metadata.ideas.length
+    ? metadata.ideas.map((idea) => `- ${cleanText(idea)}`).join('\n')
+    : '- Revisar la transcripción y decidir si se convierte en guía, mejora o tarea.';
 
   return `# ${cleanTitle}
 
@@ -52,6 +153,15 @@ const buildTranscriptMarkdown = ({ title, sourceUrl, platform, project, transcri
 - Archivo original: ${cleanFileName}
 - Modelo de transcripción: ${cleanModel}
 - Estado: pendiente
+- Etiquetas: ${cleanTags}
+
+## Resumen automático
+
+${cleanSummary}
+
+## Ideas detectadas
+
+${cleanIdeas}
 
 ## Uso previsto
 
@@ -193,10 +303,12 @@ app.post('/api/save-transcript-to-github', async (req, res) => {
       });
     }
 
+    const metadata = await generateKnowledgeMetadata({ title, transcription, fileName });
+
     const now = new Date();
     const datePrefix = now.toISOString().slice(0, 10);
     const timePrefix = now.toISOString().slice(11, 19).replace(/:/g, '');
-    const slug = sanitizeSlug(title || fileName || 'transcripcion-aeterna');
+    const slug = sanitizeSlug(metadata.title || title || fileName || 'transcripcion-aeterna');
     const path = `${basePath}/${datePrefix}_${timePrefix}_${slug}.md`;
 
     const markdown = buildTranscriptMarkdown({
@@ -206,7 +318,8 @@ app.post('/api/save-transcript-to-github', async (req, res) => {
       project,
       transcription,
       model,
-      fileName
+      fileName,
+      metadata
     });
 
     const content = Buffer.from(markdown, 'utf8').toString('base64');
@@ -236,7 +349,10 @@ app.post('/api/save-transcript-to-github', async (req, res) => {
       success: true,
       path,
       url: data?.content?.html_url || null,
-      commit: data?.commit?.sha || null
+      commit: data?.commit?.sha || null,
+      title: metadata.title,
+      summary: metadata.summary,
+      tags: metadata.tags
     });
   } catch (error) {
     console.error(error);
