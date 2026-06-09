@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>AETERNA Mobile Full</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-200 overflow-hidden">
+  <div class="h-dvh w-screen p-2 overflow-hidden">
+    <div class="h-full max-w-3xl mx-auto bg-[#0d1521] border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+      <header class="shrink-0 px-3 py-3 border-b border-slate-800 text-center">
+        <h1 class="text-3xl font-light text-white tracking-[0.24em] uppercase leading-none">AETERNA</h1>
+        <p class="text-[9px] text-slate-500 tracking-[0.35em] uppercase mt-1">Digital Synthesis</p>
+      </header>
+
+      <main id="inputView" class="flex-1 min-h-0 p-3 flex flex-col gap-3 overflow-hidden">
+        <section class="bg-slate-950/70 p-3 rounded-2xl border border-slate-700 text-center shrink-0">
+          <p class="text-[10px] text-cyan-400 font-bold uppercase tracking-widest mb-1">Paso 1: Descarga el vídeo</p>
+          <p class="text-xs text-slate-400 mb-3">Pega el enlace y descarga el archivo.</p>
+          <div class="grid grid-cols-1 gap-3">
+            <a href="https://snaptik.app/" target="_blank" class="bg-[#00a86b] hover:bg-[#008f5a] text-white font-bold py-4 rounded-xl text-center text-base transition-all shadow-md">Descargar TikTok</a>
+            <a href="https://www.y2mate.is/" target="_blank" class="bg-red-600 hover:bg-red-500 text-white font-bold py-4 rounded-xl text-center text-base transition-all shadow-md">Descargar YouTube</a>
+          </div>
+        </section>
+
+        <section class="bg-slate-950 p-3 rounded-2xl border border-slate-700 text-center shrink-0">
+          <p class="text-[10px] text-cyan-400 font-bold uppercase tracking-widest mb-1">Paso 2: Selecciona el archivo</p>
+          <p class="text-xs text-slate-400 mb-3">Elige el vídeo o audio descargado.</p>
+          <input id="fileInput" type="file" accept="video/*,audio/*" class="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-cyan-500 file:text-slate-950 hover:file:bg-cyan-600" />
+          <p id="fileName" class="text-xs text-emerald-400 mt-3 font-medium truncate hidden"></p>
+        </section>
+
+        <section class="rounded-2xl border border-slate-800 bg-slate-950/45 flex-1 min-h-0 flex items-center justify-center overflow-hidden">
+          <div id="emptyState" class="text-center px-4">
+            <div class="w-20 h-20 mx-auto mb-4 rounded-full border border-cyan-900/70 bg-cyan-950/20 flex items-center justify-center text-cyan-400 text-3xl">↧</div>
+            <div class="text-slate-500 text-xs tracking-[0.25em] uppercase mb-3">Archivo → Texto → GitHub</div>
+            <p class="text-slate-500 text-sm max-w-xs mx-auto">Carga un vídeo para convertirlo en una fuente reutilizable.</p>
+          </div>
+          <video id="videoPreview" controls class="hidden w-full h-full object-contain bg-black"></video>
+          <audio id="audioPreview" controls class="hidden w-full px-4"></audio>
+        </section>
+
+        <div class="shrink-0">
+          <div id="progressWrap" class="hidden w-full bg-slate-950 rounded-full h-2 border border-slate-800 overflow-hidden mb-2">
+            <div id="progressBar" class="bg-cyan-500 h-2 transition-all duration-300" style="width:0%"></div>
+          </div>
+          <button id="convertBtn" disabled class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-cyan-900/20 disabled:opacity-50 text-base">Paso 3: Iniciar conversión</button>
+        </div>
+      </main>
+
+      <main id="resultView" class="hidden flex-1 min-h-0 p-3 flex-col gap-3 overflow-hidden">
+        <div id="errorBox" class="hidden shrink-0 p-3 bg-red-950/40 border border-red-900/60 rounded-2xl text-red-200 text-xs font-mono whitespace-pre-wrap overflow-y-auto max-h-[35dvh]"></div>
+        <div id="saveBox" class="hidden shrink-0 p-3 bg-emerald-950/40 border border-emerald-900/60 rounded-2xl text-emerald-200 text-xs font-mono whitespace-pre-wrap overflow-y-auto max-h-[18dvh]"></div>
+        <div id="transcriptBox" class="flex-1 min-h-0 bg-slate-950 p-4 rounded-2xl border border-slate-700 text-slate-100 text-sm whitespace-pre-wrap leading-relaxed overflow-y-auto shadow-inner"></div>
+        <section class="shrink-0 bg-slate-950 p-3 rounded-2xl border border-slate-700 space-y-2 text-center">
+          <p class="text-[10px] text-cyan-400 font-bold uppercase tracking-widest">Paso 5: Guardar como fuente</p>
+          <input id="titleInput" type="text" placeholder="Título sugerido automático" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-500 text-left" />
+          <select id="projectInput" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 text-left"><option value="">Sin proyecto asignado</option></select>
+        </section>
+        <div class="shrink-0 grid grid-cols-3 gap-2">
+          <button id="copyBtn" class="bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-xs font-bold border border-slate-700">Copiar</button>
+          <button id="txtBtn" class="bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-xs font-bold border border-slate-700">TXT</button>
+          <button id="githubBtn" class="bg-emerald-700 hover:bg-emerald-600 py-3 rounded-xl text-xs font-bold border border-emerald-600">GitHub</button>
+        </div>
+      </main>
+    </div>
+  </div>
+
+<script>
+const BACKEND_URL = 'https://aeterna-pro-backend.onrender.com';
+let selectedFile = null;
+let transcript = '';
+let meta = {};
+
+const $ = id => document.getElementById(id);
+
+fetch(`${BACKEND_URL}/api/github-repos`).then(r => r.json()).then(data => {
+  if (!data.success || !Array.isArray(data.repos)) return;
+  data.repos.forEach(repo => {
+    const opt = document.createElement('option');
+    opt.value = repo.name;
+    opt.textContent = repo.name;
+    $('projectInput').appendChild(opt);
+  });
+}).catch(() => {});
+
+$('fileInput').addEventListener('change', e => {
+  selectedFile = e.target.files[0];
+  if (!selectedFile) return;
+  $('fileName').textContent = selectedFile.name;
+  $('fileName').classList.remove('hidden');
+  $('convertBtn').disabled = false;
+  $('emptyState').classList.add('hidden');
+
+  const url = URL.createObjectURL(selectedFile);
+  $('videoPreview').classList.add('hidden');
+  $('audioPreview').classList.add('hidden');
+
+  if (selectedFile.type.startsWith('video/')) {
+    $('videoPreview').src = url;
+    $('videoPreview').classList.remove('hidden');
+  } else if (selectedFile.type.startsWith('audio/')) {
+    $('audioPreview').src = url;
+    $('audioPreview').classList.remove('hidden');
+  }
+});
+
+$('convertBtn').addEventListener('click', () => {
+  if (!selectedFile) return;
+  $('convertBtn').disabled = true;
+  $('convertBtn').textContent = 'Procesando...';
+  $('progressWrap').classList.remove('hidden');
+  $('progressBar').style.width = '0%';
+
+  const form = new FormData();
+  form.append('file', selectedFile);
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', `${BACKEND_URL}/api/transcribe`, true);
+  xhr.upload.onprogress = event => {
+    if (event.lengthComputable) $('progressBar').style.width = Math.round((event.loaded / event.total) * 100) + '%';
+  };
+  xhr.onload = () => {
+    $('convertBtn').disabled = false;
+    $('convertBtn').textContent = 'Paso 3: Iniciar conversión';
+    try {
+      const data = JSON.parse(xhr.responseText || '{}');
+      $('inputView').classList.add('hidden');
+      $('resultView').classList.remove('hidden');
+      $('resultView').classList.add('flex');
+      if (xhr.status === 200 && data.success) {
+        transcript = data.transcription || '';
+        meta = { model: data.model || '', fileName: data.fileName || selectedFile.name };
+        $('transcriptBox').textContent = transcript;
+        $('titleInput').value = data.suggestedTitle || '';
+      } else {
+        $('errorBox').textContent = data.error || `Error del servidor (${xhr.status})`;
+        $('errorBox').classList.remove('hidden');
+      }
+    } catch (_) {
+      $('errorBox').textContent = 'Error al procesar la respuesta del servidor.';
+      $('errorBox').classList.remove('hidden');
+    }
+  };
+  xhr.onerror = () => {
+    $('convertBtn').disabled = false;
+    $('convertBtn').textContent = 'Paso 3: Iniciar conversión';
+    $('inputView').classList.add('hidden');
+    $('resultView').classList.remove('hidden');
+    $('resultView').classList.add('flex');
+    $('errorBox').textContent = 'Error de red o conexión rechazada por el backend. Comprueba que Render esté activo.';
+    $('errorBox').classList.remove('hidden');
+  };
+  xhr.send(form);
+});
+
+$('copyBtn').addEventListener('click', () => navigator.clipboard.writeText(transcript));
+$('txtBtn').addEventListener('click', () => {
+  const blob = new Blob([transcript], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'transcripcion.txt';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+$('githubBtn').addEventListener('click', async () => {
+  if (!transcript) return;
+  $('githubBtn').textContent = 'Guardando...';
+  try {
+    const r = await fetch(`${BACKEND_URL}/api/save-transcript-to-github`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: $('titleInput').value,
+        platform: 'TikTok',
+        project: $('projectInput').value,
+        transcription: transcript,
+        model: meta.model,
+        fileName: meta.fileName
+      })
+    });
+    const data = await r.json();
+    if (!r.ok || !data.success) throw new Error(data.error || 'Error guardando en GitHub.');
+    $('saveBox').textContent = `Guardado en GitHub: ${data.path}`;
+    $('saveBox').classList.remove('hidden');
+  } catch (e) {
+    $('errorBox').textContent = e.message || 'Error guardando en GitHub.';
+    $('errorBox').classList.remove('hidden');
+  } finally {
+    $('githubBtn').textContent = 'GitHub';
+  }
+});
+</script>
+</body>
+</html>
