@@ -103,6 +103,7 @@
 
                         if (xhr.status === 200 && responseData.success) {
                             setResult(responseData.transcription);
+                            setTitle(responseData.suggestedTitle || "");
                             setResultMeta({
                                 model: responseData.model || "",
                                 fileName: responseData.fileName || mediaFile.name
@@ -278,7 +279,7 @@
                                         type="text"
                                         value={title}
                                         onChange={(e) => setTitle(e.target.value)}
-                                        placeholder="Título manual opcional"
+                                        placeholder="Título sugerido automático"
                                         className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-500"
                                     />
 
