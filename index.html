@@ -41,7 +41,6 @@
                     try {
                         const response = await fetch(`${BACKEND_URL}/api/github-repos`);
                         const data = await response.json();
-
                         if (response.ok && data.success && Array.isArray(data.repos)) {
                             setRepos(data.repos);
                         }
@@ -51,14 +50,12 @@
                         setReposLoading(false);
                     }
                 };
-
                 loadRepos();
             }, []);
 
             const handleFileChange = (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
-
                 setErrorMsg(null);
                 setSaveMsg(null);
                 setResult(null);
@@ -86,17 +83,14 @@
 
                 xhr.upload.onprogress = (event) => {
                     if (event.lengthComputable) {
-                        const percentComplete = Math.round((event.loaded / event.total) * 100);
-                        setUploadProgress(percentComplete);
+                        setUploadProgress(Math.round((event.loaded / event.total) * 100));
                     }
                 };
 
                 xhr.onload = function () {
                     setLoading(false);
-
                     try {
                         const responseData = JSON.parse(xhr.responseText || "{}");
-
                         if (xhr.status === 200 && responseData.success) {
                             setResult(responseData.transcription);
                             setTitle(responseData.suggestedTitle || "");
@@ -107,7 +101,7 @@
                         } else {
                             setErrorMsg(responseData.error || `Error del servidor (${xhr.status})`);
                         }
-                    } catch (e) {
+                    } catch (_) {
                         setErrorMsg("Error al procesar la respuesta del servidor.");
                     }
                 };
@@ -129,21 +123,17 @@
 
             const downloadTextFile = () => {
                 if (!result) return;
-
                 const blob = new Blob([result], { type: "text/plain" });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement("a");
-
                 a.href = url;
                 a.download = "transcripcion.txt";
                 a.click();
-
                 URL.revokeObjectURL(url);
             };
 
             const saveToGitHub = async () => {
                 if (!result) return;
-
                 setSaving(true);
                 setErrorMsg(null);
                 setSaveMsg(null);
@@ -151,9 +141,7 @@
                 try {
                     const response = await fetch(`${BACKEND_URL}/api/save-transcript-to-github`, {
                         method: "POST",
-                        headers: {
-                            "Content-Type": "application/json"
-                        },
+                        headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                             title,
                             platform,
@@ -165,11 +153,9 @@
                     });
 
                     const data = await response.json();
-
                     if (!response.ok || !data.success) {
-                        throw new Error(data.error || `Error del servidor (${response.status}`);
+                        throw new Error(data.error || `Error del servidor (${response.status})`);
                     }
-
                     setSaveMsg(`Guardado en GitHub: ${data.path}`);
                 } catch (error) {
                     setErrorMsg(error.message || "Error guardando en GitHub.");
@@ -195,65 +181,30 @@
                                     <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest mb-1">Paso 1: Descarga el vídeo</p>
                                     <p className="text-xs text-slate-400 mb-3">Pega el enlace y descarga el archivo.</p>
                                     <div className="grid grid-cols-2 gap-3">
-                                        <a
-                                            href="https://snaptik.app/"
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="bg-[#00a86b] hover:bg-[#008f5a] text-white font-bold py-3 rounded-xl text-center text-sm transition-all shadow-md"
-                                        >
-                                            TikTok
-                                        </a>
-
-                                        <a
-                                            href="https://www.y2mate.is/"
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl text-center text-sm transition-all shadow-md"
-                                        >
-                                            YouTube
-                                        </a>
+                                        <a href="https://snaptik.app/" target="_blank" rel="noopener noreferrer" className="bg-[#00a86b] hover:bg-[#008f5a] text-white font-bold py-3 rounded-xl text-center text-sm transition-all shadow-md">TikTok</a>
+                                        <a href="https://www.y2mate.is/" target="_blank" rel="noopener noreferrer" className="bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl text-center text-sm transition-all shadow-md">YouTube</a>
                                     </div>
                                 </div>
 
                                 <div className="bg-slate-950 p-3 md:p-4 rounded-2xl border border-slate-700 text-center shrink-0">
                                     <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest mb-1">Paso 2: Selecciona el archivo</p>
                                     <p className="text-xs text-slate-400 mb-3">Elige el vídeo o audio descargado.</p>
-
-                                    <input
-                                        type="file"
-                                        accept="video/*,audio/*"
-                                        onChange={handleFileChange}
-                                        className="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-cyan-500 file:text-slate-950 hover:file:bg-cyan-600"
-                                    />
-
-                                    {mediaFile && (
-                                        <p className="text-xs text-emerald-400 mt-3 font-medium truncate">{mediaFile.name}</p>
-                                    )}
+                                    <input type="file" accept="video/*,audio/*" onChange={handleFileChange} className="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-cyan-500 file:text-slate-950 hover:file:bg-cyan-600" />
+                                    {mediaFile && <p className="text-xs text-emerald-400 mt-3 font-medium truncate">{mediaFile.name}</p>}
                                 </div>
 
-                                <button
-                                    onClick={handleTranscribe}
-                                    disabled={loading || !mediaFile}
-                                    className="shrink-0 w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-cyan-900/20 disabled:opacity-50"
-                                >
+                                <button onClick={handleTranscribe} disabled={loading || !mediaFile} className="shrink-0 w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-cyan-900/20 disabled:opacity-50">
                                     {loading ? `Procesando... ${uploadProgress}%` : "Paso 3: Iniciar conversión"}
                                 </button>
 
                                 {loading && (
                                     <div className="w-full bg-slate-950 rounded-full h-2 border border-slate-800 overflow-hidden shrink-0">
-                                        <div
-                                            className="bg-cyan-500 h-2 transition-all duration-300"
-                                            style={{ width: `${uploadProgress}%` }}
-                                        ></div>
+                                        <div className="bg-cyan-500 h-2 transition-all duration-300" style={{ width: `${uploadProgress}%` }}></div>
                                     </div>
                                 )}
-
-                                <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-950/50 flex-1 min-h-0 flex items-center justify-center text-slate-600 text-sm text-center px-6">
-                                    {mediaFile ? 'Archivo preparado. Inicia la conversión para transcribir.' : 'Selecciona un archivo para empezar.'}
-                                </div>
                             </section>
 
-                            <section className="min-h-0 p-2 md:p-4 flex flex-col gap-2 md:gap-3 overflow-hidden">
+                            <section className={`${hasOutput ? 'flex' : 'hidden lg:flex'} min-h-0 p-2 md:p-4 flex-col gap-2 md:gap-3 overflow-hidden`}>
                                 {errorMsg && (
                                     <div className="shrink-0 p-3 bg-red-950/40 border border-red-900/60 rounded-2xl text-red-200 text-xs font-mono whitespace-pre-wrap overflow-y-auto max-h-[42dvh] md:max-h-[35dvh]">
                                         <div className="font-bold uppercase tracking-wider text-red-400 mb-1">Error:</div>
@@ -268,10 +219,8 @@
                                     </div>
                                 )}
 
-                                {!result && !errorMsg && (
-                                    <div className="flex-1 min-h-0 rounded-2xl border border-dashed border-slate-700 bg-slate-950/50 flex items-center justify-center text-slate-600 text-sm text-center px-8">
-                                        Paso 4: aquí aparecerá la transcripción.
-                                    </div>
+                                {!hasOutput && (
+                                    <div className="hidden lg:flex flex-1 min-h-0 rounded-2xl border border-dashed border-slate-800 bg-slate-950/30 items-center justify-center text-slate-700 text-sm text-center px-8"></div>
                                 )}
 
                                 {result && (
@@ -285,50 +234,18 @@
                                                 <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest">Paso 5: Guardar como fuente</p>
                                                 <p className="text-xs text-slate-400 mt-1">Ajusta título, elige proyecto y guarda si quieres.</p>
                                             </div>
-
-                                            <input
-                                                type="text"
-                                                value={title}
-                                                onChange={(e) => setTitle(e.target.value)}
-                                                placeholder="Título sugerido automático"
-                                                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-500 text-left"
-                                            />
-
-                                            <select
-                                                value={project}
-                                                onChange={(e) => setProject(e.target.value)}
-                                                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 text-left"
-                                            >
+                                            <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Título sugerido automático" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-500 text-left" />
+                                            <select value={project} onChange={(e) => setProject(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 text-left">
                                                 <option value="">Sin proyecto asignado</option>
                                                 {reposLoading && <option value="">Cargando repositorios...</option>}
-                                                {!reposLoading && repos.map((repo) => (
-                                                    <option key={repo.fullName} value={repo.name}>{repo.name}</option>
-                                                ))}
+                                                {!reposLoading && repos.map((repo) => <option key={repo.fullName} value={repo.name}>{repo.name}</option>)}
                                             </select>
                                         </div>
 
                                         <div className="shrink-0 grid grid-cols-3 gap-2 md:gap-3">
-                                            <button
-                                                onClick={copyToClipboard}
-                                                className="bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-xs font-bold border border-slate-700 transition-all"
-                                            >
-                                                Copiar
-                                            </button>
-
-                                            <button
-                                                onClick={downloadTextFile}
-                                                className="bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-xs font-bold border border-slate-700 transition-all"
-                                            >
-                                                TXT
-                                            </button>
-
-                                            <button
-                                                onClick={saveToGitHub}
-                                                disabled={saving}
-                                                className="bg-emerald-700 hover:bg-emerald-600 py-3 rounded-xl text-xs font-bold border border-emerald-600 transition-all disabled:opacity-50"
-                                            >
-                                                {saving ? "Guardando..." : "GitHub"}
-                                            </button>
+                                            <button onClick={copyToClipboard} className="bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-xs font-bold border border-slate-700 transition-all">Copiar</button>
+                                            <button onClick={downloadTextFile} className="bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-xs font-bold border border-slate-700 transition-all">TXT</button>
+                                            <button onClick={saveToGitHub} disabled={saving} className="bg-emerald-700 hover:bg-emerald-600 py-3 rounded-xl text-xs font-bold border border-emerald-600 transition-all disabled:opacity-50">{saving ? "Guardando..." : "GitHub"}</button>
                                         </div>
                                     </>
                                 )}
