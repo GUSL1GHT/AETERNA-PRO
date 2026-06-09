@@ -8,7 +8,7 @@ const app = express();
 const upload = multer({ dest: 'uploads/' });
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '2mb' }));
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
@@ -17,6 +17,50 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const isTemporaryGeminiError = (error) => {
   const text = JSON.stringify(error || {}).toLowerCase() + ' ' + String(error?.message || '').toLowerCase();
   return text.includes('503') || text.includes('unavailable') || text.includes('overloaded') || text.includes('try again later');
+};
+
+const sanitizeSlug = (value) => {
+  return String(value || 'transcripcion')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80) || 'transcripcion';
+};
+
+const cleanText = (value) => String(value || '').replace(/\r\n/g, '\n').trim();
+
+const buildTranscriptMarkdown = ({ title, sourceUrl, platform, project, transcription, model, fileName }) => {
+  const now = new Date().toISOString();
+  const cleanTitle = cleanText(title) || 'Transcripción AETERNA';
+  const cleanPlatform = cleanText(platform) || 'No especificada';
+  const cleanProject = cleanText(project) || 'Sin proyecto asignado';
+  const cleanSourceUrl = cleanText(sourceUrl) || 'No especificada';
+  const cleanFileName = cleanText(fileName) || 'No especificado';
+  const cleanModel = cleanText(model) || 'No especificado';
+  const cleanTranscript = cleanText(transcription);
+
+  return `# ${cleanTitle}
+
+## Metadatos
+
+- Fecha: ${now}
+- Plataforma: ${cleanPlatform}
+- URL original: ${cleanSourceUrl}
+- Proyecto relacionado: ${cleanProject}
+- Archivo original: ${cleanFileName}
+- Modelo de transcripción: ${cleanModel}
+- Estado: pendiente
+
+## Uso previsto
+
+Fuente capturada con AETERNA para revisión posterior, auditoría de ideas, generación de guías o posible conversión en tareas de proyecto.
+
+## Transcripción literal
+
+${cleanTranscript}
+`;
 };
 
 app.get('/', (req, res) => {
@@ -95,6 +139,7 @@ Reglas obligatorias:
           return res.json({
             success: true,
             model,
+            fileName: req.file.originalname,
             transcription: (response.text || '').trim()
           });
         } catch (error) {
@@ -121,6 +166,84 @@ Reglas obligatorias:
     if (filePath && fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
     }
+  }
+});
+
+app.post('/api/save-transcript-to-github', async (req, res) => {
+  try {
+    const token = process.env.GITHUB_TOKEN;
+    const owner = process.env.GITHUB_OWNER || 'GUSL1GHT';
+    const repo = process.env.GITHUB_REPO || 'AETERNA-PRO';
+    const branch = process.env.GITHUB_BRANCH || 'main';
+    const basePath = (process.env.GITHUB_TRANSCRIPTS_PATH || 'sources/aeterna/inbox').replace(/^\/+|\/+$/g, '');
+
+    if (!token) {
+      return res.status(500).json({
+        success: false,
+        error: 'Falta configurar GITHUB_TOKEN en Render.'
+      });
+    }
+
+    const { title, sourceUrl, platform, project, transcription, model, fileName } = req.body || {};
+
+    if (!transcription || !String(transcription).trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'No hay transcripción para guardar.'
+      });
+    }
+
+    const now = new Date();
+    const datePrefix = now.toISOString().slice(0, 10);
+    const timePrefix = now.toISOString().slice(11, 19).replace(/:/g, '');
+    const slug = sanitizeSlug(title || fileName || 'transcripcion-aeterna');
+    const path = `${basePath}/${datePrefix}_${timePrefix}_${slug}.md`;
+
+    const markdown = buildTranscriptMarkdown({
+      title,
+      sourceUrl,
+      platform,
+      project,
+      transcription,
+      model,
+      fileName
+    });
+
+    const content = Buffer.from(markdown, 'utf8').toString('base64');
+
+    const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${encodeURIComponent(path).replace(/%2F/g, '/')}`, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github+json',
+        'Content-Type': 'application/json',
+        'X-GitHub-Api-Version': '2022-11-28'
+      },
+      body: JSON.stringify({
+        message: `Add AETERNA transcript ${datePrefix} ${slug}`,
+        content,
+        branch
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data?.message || `GitHub respondió con estado ${response.status}`);
+    }
+
+    res.json({
+      success: true,
+      path,
+      url: data?.content?.html_url || null,
+      commit: data?.commit?.sha || null
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Error guardando en GitHub.'
+    });
   }
 });
 
