@@ -26,7 +26,6 @@
             const [result, setResult] = useState(null);
             const [resultMeta, setResultMeta] = useState(null);
             const [mediaFile, setMediaFile] = useState(null);
-            const [videoPreviewUrl, setVideoPreviewUrl] = useState(null);
             const [errorMsg, setErrorMsg] = useState(null);
             const [saveMsg, setSaveMsg] = useState(null);
             const [uploadProgress, setUploadProgress] = useState(0);
@@ -67,9 +66,6 @@
                 setUploadProgress(0);
                 setMediaFile(file);
                 setTitle("");
-
-                if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
-                setVideoPreviewUrl(URL.createObjectURL(file));
             };
 
             const handleTranscribe = () => {
@@ -171,7 +167,7 @@
                     const data = await response.json();
 
                     if (!response.ok || !data.success) {
-                        throw new Error(data.error || `Error del servidor (${response.status})`);
+                        throw new Error(data.error || `Error del servidor (${response.status}`);
                     }
 
                     setSaveMsg(`Guardado en GitHub: ${data.path}`);
@@ -235,12 +231,6 @@
                                     )}
                                 </div>
 
-                                {videoPreviewUrl && (
-                                    <div className="lg:hidden rounded-2xl overflow-hidden border border-slate-700 bg-black flex-1 min-h-0">
-                                        <video src={videoPreviewUrl} controls className="w-full h-full object-contain" />
-                                    </div>
-                                )}
-
                                 <button
                                     onClick={handleTranscribe}
                                     disabled={loading || !mediaFile}
@@ -258,8 +248,8 @@
                                     </div>
                                 )}
 
-                                <div className="hidden lg:flex rounded-2xl border border-dashed border-slate-700 bg-slate-950/50 flex-1 items-center justify-center text-slate-600 text-sm text-center px-6">
-                                    La previsualización aparece a la derecha.
+                                <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-950/50 flex-1 min-h-0 flex items-center justify-center text-slate-600 text-sm text-center px-6">
+                                    {mediaFile ? 'Archivo preparado. Inicia la conversión para transcribir.' : 'Selecciona un archivo para empezar.'}
                                 </div>
                             </section>
 
@@ -278,15 +268,9 @@
                                     </div>
                                 )}
 
-                                {!result && !errorMsg && videoPreviewUrl && (
-                                    <div className="hidden lg:flex flex-1 min-h-0 rounded-2xl border border-slate-700 bg-black overflow-hidden items-center justify-center">
-                                        <video src={videoPreviewUrl} controls className="w-full h-full object-contain" />
-                                    </div>
-                                )}
-
-                                {!result && !errorMsg && !videoPreviewUrl && (
+                                {!result && !errorMsg && (
                                     <div className="flex-1 min-h-0 rounded-2xl border border-dashed border-slate-700 bg-slate-950/50 flex items-center justify-center text-slate-600 text-sm text-center px-8">
-                                        Paso 4: aquí aparecerá la previsualización del vídeo y después la transcripción.
+                                        Paso 4: aquí aparecerá la transcripción.
                                     </div>
                                 )}
 
