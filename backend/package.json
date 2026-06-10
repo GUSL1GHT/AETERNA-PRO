@@ -2,9 +2,9 @@
   "name": "aeterna-backend",
   "version": "1.0.0",
   "description": "Backend seguro para AETERNA PRO",
-  "main": "server.js",
+  "main": "server-v11.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server-v11.js"
   },
   "dependencies": {
     "@google/genai": "latest",
