@@ -1,7 +1,5 @@
-const CACHE_NAME = "aeterna-pro-v1";
+const CACHE_NAME = "aeterna-pro-v2";
 const CORE_ASSETS = [
-  "./",
-  "./index.html",
   "./manifest.webmanifest",
   "./icon.svg"
 ];
@@ -27,12 +25,18 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  const request = event.request;
+  const isNavigation = request.mode === "navigate" ||
+    (request.headers.get("accept") || "").includes("text/html");
+
+  if (isNavigation) {
+    event.respondWith(
+      fetch(request).catch(() => caches.match("./index.html"))
+    );
+    return;
+  }
+
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) {
-        return cached;
-      }
-      return fetch(event.request);
-    })
+    caches.match(request).then((cached) => cached || fetch(request))
   );
 });
