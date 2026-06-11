@@ -1,11 +1,356 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>AETERNA Beta v1.1</title>
-  <style>
-    body{margin:0;background:#020617;color:#e5e7eb;font-family:system-ui;padding:16px}
-    main{max-width:980px;margin:auto}
-    h1{text-align:center;letter-spacing:.28em;font-weight:300}
-    .sub{text-align:center;color:#94a3b8;margin-bottom:18px}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AETERNA | Digital Synthesis</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-slate-950 text-slate-200 overflow-hidden">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useEffect, useState } = React;
+
+        const BACKEND_URL = "https://aeterna-pro-backend.onrender.com";
+
+        function App() {
+            const [loading, setLoading] = useState(false);
+            const [saving, setSaving] = useState(false);
+            const [result, setResult] = useState(null);
+            const [resultMeta, setResultMeta] = useState(null);
+            const [mediaFile, setMediaFile] = useState(null);
+            const [previewUrl, setPreviewUrl] = useState(null);
+            const [sourceUrl, setSourceUrl] = useState("");
+            const [errorMsg, setErrorMsg] = useState(null);
+            const [saveMsg, setSaveMsg] = useState(null);
+            const [uploadProgress, setUploadProgress] = useState(0);
+            const [title, setTitle] = useState("");
+            const [platform, setPlatform] = useState("TikTok");
+            const [project, setProject] = useState("");
+            const [repos, setRepos] = useState([]);
+            const [reposLoading, setReposLoading] = useState(false);
+
+            useEffect(() => {
+                const loadRepos = async () => {
+                    setReposLoading(true);
+                    try {
+                        const response = await fetch(`${BACKEND_URL}/api/github-repos`);
+                        const data = await response.json();
+                        if (response.ok && data.success && Array.isArray(data.repos)) {
+                            setRepos(data.repos);
+                        }
+                    } catch (_) {
+                        setRepos([]);
+                    } finally {
+                        setReposLoading(false);
+                    }
+                };
+                loadRepos();
+            }, []);
+
+            const resetOutput = () => {
+                setErrorMsg(null);
+                setSaveMsg(null);
+                setResult(null);
+                setResultMeta(null);
+                setUploadProgress(0);
+            };
+
+            const handleFileChange = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                resetOutput();
+                setMediaFile(file);
+                setSourceUrl("");
+                setTitle("");
+                if (previewUrl) URL.revokeObjectURL(previewUrl);
+                setPreviewUrl(URL.createObjectURL(file));
+            };
+
+            const applyTranscriptionResult = (responseData, fallbackFileName = "") => {
+                setResult(responseData.transcription);
+                setTitle(responseData.suggestedTitle || "");
+                setPlatform(responseData.platform || platform || "URL");
+                setResultMeta({
+                    model: responseData.model || "",
+                    fileName: responseData.fileName || fallbackFileName || "",
+                    sourceUrl: responseData.sourceUrl || sourceUrl || ""
+                });
+            };
+
+            const saveTranscriptToGitHub = async (transcription, meta = {}) => {
+                const response = await fetch(`${BACKEND_URL}/api/save-transcript-to-github`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        title: meta.title ?? title,
+                        platform: meta.platform ?? platform,
+                        project,
+                        transcription,
+                        model: meta.model || resultMeta?.model || "",
+                        fileName: meta.fileName || resultMeta?.fileName || mediaFile?.name || "",
+                        sourceUrl: meta.sourceUrl || resultMeta?.sourceUrl || sourceUrl || ""
+                    })
+                });
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || `Error del servidor (${response.status})`);
+                }
+                setSaveMsg(`Guardado en GitHub: ${data.path}`);
+                return data;
+            };
+
+            const handleUrlTranscribe = async (autoSave = false) => {
+                const url = sourceUrl.trim();
+                if (!url) {
+                    setErrorMsg("Pega una URL de TikTok, YouTube u otra plataforma compatible.");
+                    return;
+                }
+
+                setLoading(true);
+                setSaving(autoSave);
+                resetOutput();
+                setMediaFile(null);
+                if (previewUrl) {
+                    URL.revokeObjectURL(previewUrl);
+                    setPreviewUrl(null);
+                }
+
+                try {
+                    const response = await fetch(`${BACKEND_URL}/api/transcribe-url`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ url })
+                    });
+                    const data = await response.json();
+                    if (!response.ok || !data.success) {
+                        throw new Error(data.error || `Error del servidor (${response.status})`);
+                    }
+
+                    applyTranscriptionResult(data, data.fileName || url);
+
+                    if (autoSave) {
+                        await saveTranscriptToGitHub(data.transcription, {
+                            title: data.suggestedTitle || "",
+                            platform: data.platform || "URL",
+                            model: data.model || "",
+                            fileName: data.fileName || "URL remota",
+                            sourceUrl: data.sourceUrl || url
+                        });
+                    }
+                } catch (error) {
+                    setErrorMsg(error.message || "Error transcribiendo desde URL.");
+                } finally {
+                    setLoading(false);
+                    setSaving(false);
+                }
+            };
+
+            const handleFileTranscribe = () => {
+                if (!mediaFile) return;
+                setLoading(true);
+                resetOutput();
+
+                const formData = new FormData();
+                formData.append("file", mediaFile);
+
+                const xhr = new XMLHttpRequest();
+                xhr.open("POST", `${BACKEND_URL}/api/transcribe`, true);
+
+                xhr.upload.onprogress = (event) => {
+                    if (event.lengthComputable) {
+                        setUploadProgress(Math.round((event.loaded / event.total) * 100));
+                    }
+                };
+
+                xhr.onload = function () {
+                    setLoading(false);
+                    try {
+                        const responseData = JSON.parse(xhr.responseText || "{}");
+                        if (xhr.status === 200 && responseData.success) {
+                            applyTranscriptionResult(responseData, mediaFile.name);
+                        } else {
+                            setErrorMsg(responseData.error || `Error del servidor (${xhr.status})`);
+                        }
+                    } catch (_) {
+                        setErrorMsg("Error al procesar la respuesta del servidor.");
+                    }
+                };
+
+                xhr.onerror = function () {
+                    setLoading(false);
+                    setErrorMsg("Error de red o conexión rechazada por el backend. Comprueba que Render esté activo.");
+                };
+
+                xhr.send(formData);
+            };
+
+            const copyToClipboard = () => {
+                if (result) {
+                    navigator.clipboard.writeText(result);
+                    alert("Copiado al portapapeles");
+                }
+            };
+
+            const downloadTextFile = () => {
+                if (!result) return;
+                const blob = new Blob([result], { type: "text/plain" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "transcripcion.txt";
+                a.click();
+                URL.revokeObjectURL(url);
+            };
+
+            const saveToGitHub = async () => {
+                if (!result) return;
+                setSaving(true);
+                setErrorMsg(null);
+                setSaveMsg(null);
+                try {
+                    await saveTranscriptToGitHub(result);
+                } catch (error) {
+                    setErrorMsg(error.message || "Error guardando en GitHub.");
+                } finally {
+                    setSaving(false);
+                }
+            };
+
+            const hasOutput = !!result || !!errorMsg || !!saveMsg;
+            const isVideo = mediaFile?.type?.startsWith("video/");
+            const isAudio = mediaFile?.type?.startsWith("audio/");
+
+            return (
+                <div className="h-dvh w-screen bg-slate-950 font-sans p-2 md:p-3 overflow-hidden">
+                    <div className="h-full max-w-6xl mx-auto bg-[#0d1521] border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+                        <header className="shrink-0 px-3 py-2 md:px-4 md:py-3 border-b border-slate-800 text-center">
+                            <h1 className="text-2xl md:text-4xl font-light text-white tracking-[0.24em] uppercase leading-none">AETERNA</h1>
+                            <p className="text-[8px] md:text-[9px] text-slate-500 tracking-[0.35em] uppercase mt-1">Digital Synthesis</p>
+                            <p className="hidden sm:block text-xs text-slate-400 mt-2">Convierte enlaces o archivos en fuentes de conocimiento para GitHub.</p>
+                        </header>
+
+                        <main className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[390px_1fr] gap-0 overflow-hidden">
+                            <section className={`${hasOutput ? 'hidden lg:flex' : 'flex'} min-h-0 lg:border-r border-slate-800 p-2 md:p-4 flex-col gap-3 overflow-hidden`}>
+                                <div className="bg-slate-950/70 p-3 rounded-2xl border border-cyan-900/60 text-center shrink-0">
+                                    <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest mb-1">Paso 1: Pega el enlace</p>
+                                    <p className="text-xs text-slate-400 mb-3">TikTok, YouTube u otra plataforma compatible. No tienes que descargar el vídeo.</p>
+                                    <input type="url" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder="https://..." className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 text-sm text-slate-100 placeholder-slate-500 text-left mb-3" />
+                                    <div className="grid grid-cols-1 gap-2">
+                                        <button onClick={() => handleUrlTranscribe(false)} disabled={loading || !sourceUrl.trim()} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">Transcribir URL</button>
+                                        <button onClick={() => handleUrlTranscribe(true)} disabled={loading || saving || !sourceUrl.trim()} className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">{saving ? "Guardando..." : "Transcribir y guardar en GitHub"}</button>
+                                    </div>
+                                </div>
+
+                                <div className="bg-slate-950 p-3 md:p-4 rounded-2xl border border-slate-700 text-center shrink-0">
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Respaldo: Subir archivo</p>
+                                    <p className="text-xs text-slate-500 mb-3">Úsalo solo si la URL falla.</p>
+                                    <input type="file" accept="video/*,audio/*" onChange={handleFileChange} className="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-slate-700 file:text-slate-100 hover:file:bg-slate-600" />
+                                    {mediaFile && <p className="text-xs text-emerald-400 mt-3 font-medium truncate">{mediaFile.name}</p>}
+                                </div>
+
+                                <div className="rounded-2xl border border-slate-800 bg-slate-950/45 flex-1 min-h-0 flex items-center justify-center overflow-hidden">
+                                    {!mediaFile && (
+                                        <div className="text-center px-4">
+                                            <div className="w-20 h-20 mx-auto mb-4 rounded-full border border-cyan-900/70 bg-cyan-950/20 flex items-center justify-center text-cyan-400 text-3xl">↧</div>
+                                            <div className="text-slate-500 text-xs tracking-[0.25em] uppercase mb-3">URL → Texto → GitHub</div>
+                                            <p className="text-slate-500 text-sm max-w-xs mx-auto">Pega un enlace para convertirlo en una fuente reutilizable sin ocupar espacio en tu dispositivo.</p>
+                                        </div>
+                                    )}
+
+                                    {mediaFile && isVideo && previewUrl && (
+                                        <video src={previewUrl} controls className="w-full h-full object-contain bg-black" />
+                                    )}
+
+                                    {mediaFile && isAudio && previewUrl && (
+                                        <div className="w-full px-4 text-center">
+                                            <p className="text-xs text-slate-500 uppercase tracking-[0.25em] mb-4">Audio cargado</p>
+                                            <audio src={previewUrl} controls className="w-full" />
+                                        </div>
+                                    )}
+
+                                    {mediaFile && !isVideo && !isAudio && (
+                                        <div className="text-center text-slate-500 text-sm px-4">Archivo preparado para transcribir.</div>
+                                    )}
+                                </div>
+
+                                {loading && (
+                                    <div className="w-full bg-slate-950 rounded-full h-2 border border-slate-800 overflow-hidden shrink-0">
+                                        <div className="bg-cyan-500 h-2 transition-all duration-300" style={{ width: mediaFile ? `${uploadProgress}%` : '100%' }}></div>
+                                    </div>
+                                )}
+
+                                <button onClick={handleFileTranscribe} disabled={loading || !mediaFile} className="shrink-0 w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-4 rounded-xl transition-all shadow-lg disabled:opacity-50 text-base">
+                                    {loading && mediaFile ? `Procesando... ${uploadProgress}%` : "Transcribir archivo manual"}
+                                </button>
+                            </section>
+
+                            <section className={`${hasOutput ? 'flex' : 'hidden lg:flex'} min-h-0 p-2 md:p-4 flex-col gap-2 md:gap-3 overflow-hidden`}>
+                                {errorMsg && (
+                                    <div className="shrink-0 p-3 bg-red-950/40 border border-red-900/60 rounded-2xl text-red-200 text-xs font-mono whitespace-pre-wrap overflow-y-auto max-h-[42dvh] md:max-h-[35dvh]">
+                                        <div className="font-bold uppercase tracking-wider text-red-400 mb-1">Error:</div>
+                                        {errorMsg}
+                                    </div>
+                                )}
+
+                                {saveMsg && (
+                                    <div className="shrink-0 p-3 bg-emerald-950/40 border border-emerald-900/60 rounded-2xl text-emerald-200 text-xs font-mono whitespace-pre-wrap overflow-y-auto max-h-[18dvh]">
+                                        <div className="font-bold uppercase tracking-wider text-emerald-400 mb-1">Guardado:</div>
+                                        {saveMsg}
+                                    </div>
+                                )}
+
+                                {!hasOutput && (
+                                    <div className="hidden lg:flex flex-1 min-h-0 rounded-2xl border border-dashed border-slate-800 bg-slate-950/30 items-center justify-center text-slate-700 text-sm text-center px-8"></div>
+                                )}
+
+                                {result && (
+                                    <>
+                                        <div className="flex-1 min-h-0 bg-slate-950 p-3 md:p-4 rounded-2xl border border-slate-700 text-slate-100 text-sm whitespace-pre-wrap leading-relaxed overflow-y-auto shadow-inner">
+                                            {result}
+                                        </div>
+
+                                        <div className="shrink-0 bg-slate-950 p-3 rounded-2xl border border-slate-700 space-y-2 text-center">
+                                            <div>
+                                                <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest">Guardar como fuente</p>
+                                                <p className="text-xs text-slate-400 mt-1">Ajusta título, elige proyecto y guarda si quieres.</p>
+                                            </div>
+                                            <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Título sugerido automático" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-500 text-left" />
+                                            <select value={project} onChange={(e) => setProject(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 text-left">
+                                                <option value="">Sin proyecto asignado</option>
+                                                {reposLoading && <option value="">Cargando repositorios...</option>}
+                                                {!reposLoading && repos.map((repo) => <option key={repo.fullName} value={repo.name}>{repo.name}</option>)}
+                                            </select>
+                                        </div>
+
+                                        <div className="shrink-0 grid grid-cols-3 gap-2 md:gap-3">
+                                            <button onClick={copyToClipboard} className="bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-xs font-bold border border-slate-700 transition-all">Copiar</button>
+                                            <button onClick={downloadTextFile} className="bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-xs font-bold border border-slate-700 transition-all">TXT</button>
+                                            <button onClick={saveToGitHub} disabled={saving} className="bg-emerald-700 hover:bg-emerald-600 py-3 rounded-xl text-xs font-bold border border-emerald-600 transition-all disabled:opacity-50">{saving ? "Guardando..." : "GitHub"}</button>
+                                        </div>
+                                    </>
+                                )}
+                            </section>
+                        </main>
+
+                        <footer className="shrink-0 border-t border-slate-800 px-4 py-2 text-center relative">
+                            <p className="text-[8px] text-slate-500 opacity-90 uppercase tracking-[0.35em]">Architected by GUSLIGHT</p>
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[7px] md:text-[8px] text-slate-400 opacity-90 tracking-[0.12em] pointer-events-none">Beta v1.1</span>
+                        </footer>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById("root"));
+        root.render(<App />);
+    </script>
+</body>
+</html>
