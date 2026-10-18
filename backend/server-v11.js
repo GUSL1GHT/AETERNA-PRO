@@ -95,6 +95,52 @@ const githubHeaders = (token) => ({
   'X-GitHub-Api-Version': '2022-11-28'
 });
 
+const GITHUB_TRANSCRIPT_OWNER = 'GUSL1GHT';
+const GITHUB_TRANSCRIPT_REPO = 'AETERNA-TRANSCRIPTS';
+const githubSessions = new Map();
+const githubAuthStates = new Map();
+const githubAppConfigured = () => !!(process.env.GITHUB_APP_CLIENT_ID && process.env.GITHUB_APP_CLIENT_SECRET);
+const githubCallbackUrl = () => `${process.env.PUBLIC_BACKEND_URL || 'https://aeterna-pro-backend.onrender.com'}/api/github-auth/callback`;
+const githubFrontendUrl = () => process.env.PUBLIC_FRONTEND_URL || 'https://gusl1ght.github.io/AETERNA-PRO/';
+
+const githubTokenRequest = async (params) => {
+  const response = await fetch('https://github.com/login/oauth/access_token', {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams(params)
+  });
+  const data = await response.json();
+  if (!response.ok || data.error || !data.access_token) throw new Error('GitHub no pudo completar la conexión. Vuelve a intentarlo.');
+  return data;
+};
+
+const sessionFromRequest = async (req) => {
+  const sessionId = /^Bearer ([a-f0-9]{64})$/.exec(req.get('Authorization') || '')?.[1];
+  const session = sessionId && githubSessions.get(sessionId);
+  if (!session) return null;
+  if (session.expiresAt && Date.now() > session.expiresAt - 60000) {
+    if (!session.refreshToken || !githubAppConfigured()) {
+      githubSessions.delete(sessionId);
+      return null;
+    }
+    try {
+      const refreshed = await githubTokenRequest({
+        client_id: process.env.GITHUB_APP_CLIENT_ID,
+        client_secret: process.env.GITHUB_APP_CLIENT_SECRET,
+        grant_type: 'refresh_token',
+        refresh_token: session.refreshToken
+      });
+      session.accessToken = refreshed.access_token;
+      session.refreshToken = refreshed.refresh_token || null;
+      session.expiresAt = refreshed.expires_in ? Date.now() + refreshed.expires_in * 1000 : null;
+    } catch (_) {
+      githubSessions.delete(sessionId);
+      return null;
+    }
+  }
+  return session;
+};
+
 const sanitizeSlug = (value) => {
   return String(value || 'transcripcion')
     .normalize('NFD')
@@ -567,33 +613,72 @@ app.get('/', (req, res) => {
   res.json({ ok: true, service: 'AETERNA backend activo', version: 'beta-v1.1-nightly', extractorStatus });
 });
 
-app.get('/api/github-repos', async (req, res) => {
+app.get('/api/github-auth/config', (req, res) => {
+  res.json({ configured: githubAppConfigured(), repository: `${GITHUB_TRANSCRIPT_OWNER}/${GITHUB_TRANSCRIPT_REPO}` });
+});
+
+app.get('/api/github-auth/start', (req, res) => {
+  if (!githubAppConfigured()) return res.status(503).send('La conexión con GitHub aún no está configurada.');
+  const state = crypto.randomBytes(32).toString('hex');
+  const verifier = crypto.randomBytes(32).toString('base64url');
+  const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
+  githubAuthStates.set(state, { verifier, expiresAt: Date.now() + 10 * 60 * 1000 });
+  const url = new URL('https://github.com/login/oauth/authorize');
+  url.searchParams.set('client_id', process.env.GITHUB_APP_CLIENT_ID);
+  url.searchParams.set('redirect_uri', githubCallbackUrl());
+  url.searchParams.set('state', state);
+  url.searchParams.set('code_challenge', challenge);
+  url.searchParams.set('code_challenge_method', 'S256');
+  res.redirect(url.toString());
+});
+
+app.get('/api/github-auth/callback', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.set('Referrer-Policy', 'no-referrer');
+  const state = String(req.query.state || '');
+  const pending = githubAuthStates.get(state);
+  githubAuthStates.delete(state);
+  if (!pending || pending.expiresAt < Date.now() || !req.query.code) return res.status(400).send('La conexión ha caducado. Vuelve a AETERNA e inténtalo de nuevo.');
   try {
-    const token = process.env.GITHUB_TOKEN;
-    if (!token) {
-      return res.status(500).json({ success: false, error: 'Falta configurar GITHUB_TOKEN en Render.' });
-    }
-
-    const response = await fetch('https://api.github.com/user/repos?per_page=100&sort=updated&affiliation=owner,collaborator,organization_member', {
-      headers: githubHeaders(token)
+    const token = await githubTokenRequest({
+      client_id: process.env.GITHUB_APP_CLIENT_ID,
+      client_secret: process.env.GITHUB_APP_CLIENT_SECRET,
+      code: String(req.query.code),
+      redirect_uri: githubCallbackUrl(),
+      code_verifier: pending.verifier
     });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data?.message || `GitHub respondió con estado ${response.status}`);
+    const userResponse = await fetch('https://api.github.com/user', { headers: githubHeaders(token.access_token) });
+    const user = await userResponse.json();
+    if (!userResponse.ok || user.login?.toLowerCase() !== GITHUB_TRANSCRIPT_OWNER.toLowerCase()) {
+      return res.status(403).send('Esta aplicación solo guarda fuentes en la cuenta GUSL1GHT.');
     }
-
-    const repos = data
-      .filter(repo => repo && repo.name)
-      .map(repo => ({ name: repo.name, fullName: repo.full_name, private: !!repo.private, updatedAt: repo.updated_at || null }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-
-    res.json({ success: true, repos });
+    const sessionId = crypto.randomBytes(32).toString('hex');
+    githubSessions.set(sessionId, {
+      login: user.login,
+      accessToken: token.access_token,
+      refreshToken: token.refresh_token || null,
+      expiresAt: token.expires_in ? Date.now() + token.expires_in * 1000 : null
+    });
+    const frontend = new URL(githubFrontendUrl());
+    frontend.hash = `github_session=${sessionId}`;
+    res.redirect(frontend.toString());
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, error: error.message || 'Error cargando repositorios de GitHub.' });
+    console.error('Error de conexión con GitHub:', error.message);
+    res.status(502).send('No se pudo conectar con GitHub. Vuelve a AETERNA e inténtalo de nuevo.');
   }
+});
+
+app.get('/api/github-auth/status', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const session = await sessionFromRequest(req);
+  if (!session) return res.status(401).json({ connected: false });
+  res.json({ connected: true, login: session.login, repository: `${GITHUB_TRANSCRIPT_OWNER}/${GITHUB_TRANSCRIPT_REPO}` });
+});
+
+app.post('/api/github-auth/logout', (req, res) => {
+  const sessionId = /^Bearer ([a-f0-9]{64})$/.exec(req.get('Authorization') || '')?.[1];
+  if (sessionId) githubSessions.delete(sessionId);
+  res.json({ success: true });
 });
 
 app.post('/api/transcribe', upload.single('file'), async (req, res) => {
@@ -698,15 +783,13 @@ app.post('/api/transcribe-url', async (req, res) => {
 
 app.post('/api/save-transcript-to-github', async (req, res) => {
   try {
-    const token = process.env.GITHUB_TOKEN;
-    const owner = process.env.GITHUB_OWNER || 'GUSL1GHT';
-    const repo = process.env.GITHUB_REPO || 'AETERNA-PRO';
-    const branch = process.env.GITHUB_BRANCH || 'main';
-    const basePath = (process.env.GITHUB_TRANSCRIPTS_PATH || 'sources/aeterna/inbox').replace(/^\/+|\/+$/g, '');
-
-    if (!token) {
-      return res.status(500).json({ success: false, error: 'Falta configurar GITHUB_TOKEN en Render.' });
-    }
+    const session = await sessionFromRequest(req);
+    if (!session) return res.status(401).json({ success: false, error: 'Conecta tu cuenta de GitHub para guardar la transcripción.' });
+    const token = session.accessToken;
+    const owner = GITHUB_TRANSCRIPT_OWNER;
+    const repo = GITHUB_TRANSCRIPT_REPO;
+    const branch = 'main';
+    const basePath = 'transcripts';
 
     const { title, platform, project, transcription, model, fileName, sourceUrl } = req.body || {};
 
@@ -720,7 +803,7 @@ app.post('/api/save-transcript-to-github', async (req, res) => {
     const datePrefix = now.toISOString().slice(0, 10);
     const timePrefix = now.toISOString().slice(11, 19).replace(/:/g, '');
     const slug = sanitizeSlug(metadata.title || title || 'transcripcion-aeterna');
-    const savePath = `${basePath}/${datePrefix}_${timePrefix}_${slug}.md`;
+    const savePath = `${basePath}/${datePrefix.slice(0, 4)}/${datePrefix.slice(5, 7)}/${datePrefix}_${timePrefix}_${slug}_${crypto.randomBytes(3).toString('hex')}.md`;
 
     const markdown = buildTranscriptMarkdown({ title, platform, project, transcription, model, fileName, sourceUrl, metadata });
     const content = Buffer.from(markdown, 'utf8').toString('base64');
@@ -738,6 +821,9 @@ app.post('/api/save-transcript-to-github', async (req, res) => {
     const data = await response.json();
 
     if (!response.ok) {
+      if (response.status === 401 || response.status === 403 || response.status === 404) {
+        return res.status(403).json({ success: false, error: 'La conexión de GitHub no tiene acceso de escritura a AETERNA-TRANSCRIPTS. Revisa la instalación de la aplicación.' });
+      }
       throw new Error(data?.message || `GitHub respondió con estado ${response.status}`);
     }
 
