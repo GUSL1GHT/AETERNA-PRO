@@ -6,7 +6,7 @@ Publicar AETERNA PRO como web app accesible desde ordenador y movil.
 
 ## Requisitos
 
-- Repositorio con los archivos en la rama main.
+- Repositorio con los archivos en la rama `beta-v1.1-url-whisper` mientras se publica Beta v1.1.
 - GitHub Pages activado.
 - Repositorio publico para publicacion sencilla.
 
@@ -15,7 +15,7 @@ Publicar AETERNA PRO como web app accesible desde ordenador y movil.
 1. Entrar en Settings del repositorio.
 2. Abrir Pages.
 3. En Build and deployment seleccionar Deploy from a branch.
-4. Branch: main.
+4. Branch: `beta-v1.1-url-whisper`.
 5. Folder: / root.
 6. Guardar.
 
@@ -48,3 +48,6 @@ https://gusl1ght.github.io/AETERNA-PRO/
 - El icono se muestra.
 - La app permite seleccionar audio o video.
 - La app no contiene claves privadas en el codigo.
+- El backend de Render arranca con `backend/server-v11.js` y tiene `GEMINI_API_KEY` configurada.
+- El arranque del backend registra la versión actualizada de `yt-dlp`.
+- Una URL pública de TikTok llega a transcripción, no solo a descarga.

@@ -1,0 +1,4 @@
+backend/node_modules/
+backend/uploads/
+backend/pnpm-lock.yaml
+tools/.dev/

@@ -394,28 +394,49 @@ const inferMimeType = (filePath) => {
   return 'application/octet-stream';
 };
 
+// Render can reuse an old cached binary even after Node dependencies are rebuilt.
+// Update the bundled extractor before accepting URL downloads.
+const extractorReady = ytdlp.exec('', { update: true }, { timeout: 45000 })
+  .then(({ stdout }) => { console.log(`yt-dlp: ${stdout.trim().split('\n').pop()}`); return true; })
+  .catch((error) => {
+    console.error('No se pudo actualizar yt-dlp:', error.message);
+    return false;
+  });
+
+const runMediaDownload = (sourceUrl, outputTemplate) => ytdlp(sourceUrl, {
+  output: outputTemplate,
+  format: 'bestaudio/best',
+  noPlaylist: true,
+  restrictFilenames: true,
+  maxFilesize: '100M',
+  noWarnings: true
+});
+
 const downloadMediaFromUrl = async (sourceUrl) => {
   const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'aeterna-url-'));
   const outputTemplate = path.join(tempDir, 'source.%(ext)s');
+  try {
+    if (!await extractorReady) throw new Error('No se pudo actualizar el extractor de enlaces en el servidor.');
+    await runMediaDownload(sourceUrl, outputTemplate);
 
-  await ytdlp(sourceUrl, {
-    output: outputTemplate,
-    format: 'bestaudio/best',
-    noPlaylist: true,
-    restrictFilenames: true,
-    maxFilesize: '100M'
-  });
+    const files = await fs.promises.readdir(tempDir);
+    const downloaded = files
+      .map(file => path.join(tempDir, file))
+      .find(file => fs.existsSync(file) && fs.statSync(file).isFile());
 
-  const files = await fs.promises.readdir(tempDir);
-  const downloaded = files
-    .map(file => path.join(tempDir, file))
-    .find(file => fs.existsSync(file) && fs.statSync(file).isFile());
-
-  if (!downloaded) {
-    throw new Error('No se pudo descargar audio desde la URL.');
+    if (!downloaded) throw new Error('No se pudo descargar audio desde la URL.');
+    return { tempDir, filePath: downloaded, fileName: path.basename(downloaded), mimeType: inferMimeType(downloaded) };
+  } catch (error) {
+    await fs.promises.rm(tempDir, { recursive: true, force: true });
+    const details = stringifyError(error).toLowerCase();
+    if (details.includes('impersonat') || details.includes('extract') || details.includes('unsupported url')) {
+      throw new Error('La plataforma ha rechazado la descarga del enlace. Actualiza yt-dlp en el servidor o sube el archivo manualmente.');
+    }
+    if (details.includes('file is larger') || details.includes('max-filesize')) {
+      throw new Error('El archivo supera el límite de 100 MB.');
+    }
+    throw new Error('No se pudo descargar este enlace. Comprueba que sea público o sube el archivo manualmente.');
   }
-
-  return { tempDir, filePath: downloaded, fileName: path.basename(downloaded), mimeType: inferMimeType(downloaded) };
 };
 
 const transcribeWithGeminiFile = async ({ filePath, mimeType }) => {

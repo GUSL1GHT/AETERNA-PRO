@@ -21,8 +21,8 @@
 - Evitar llamadas directas desde navegador a Gemini.
 - Anadir control de tamano y formato.
 
-## Fase 4 - Integracion con AI Studio
+## Pendiente de validar en despliegue
 
-- Mantener una copia de trabajo en GUSLIGHT-AI-STUDIO.
-- Registrar cambios y decisiones.
-- Preparar mejoras de UI y arquitectura.
+- Desplegar y probar la descarga por URL con el `yt-dlp` actual en Render.
+- Completar una transcripción real y su guardado en GitHub.
+- Confirmar la rama publicada en GitHub Pages y consolidar el backend antes de retirar archivos o ramas anteriores.

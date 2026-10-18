@@ -18,7 +18,9 @@
     <script type="text/babel">
         const { useEffect, useState } = React;
 
-        const BACKEND_URL = "https://aeterna-pro-backend.onrender.com";
+        const BACKEND_URL = ["localhost", "127.0.0.1"].includes(location.hostname)
+            ? "http://127.0.0.1:3000"
+            : "https://aeterna-pro-backend.onrender.com";
 
         function App() {
             const [loading, setLoading] = useState(false);
@@ -293,6 +295,7 @@
                             </section>
 
                             <section className={`${hasOutput ? 'flex' : 'hidden lg:flex'} min-h-0 p-2 md:p-4 flex-col gap-2 md:gap-3 overflow-hidden`}>
+                                {hasOutput && <button onClick={resetOutput} className="lg:hidden self-start text-cyan-400 text-xs font-bold px-2 py-1">← Volver al formulario</button>}
                                 {errorMsg && (
                                     <div className="shrink-0 p-3 bg-red-950/40 border border-red-900/60 rounded-2xl text-red-200 text-xs font-mono whitespace-pre-wrap overflow-y-auto max-h-[42dvh] md:max-h-[35dvh]">
                                         <div className="font-bold uppercase tracking-wider text-red-400 mb-1">Error:</div>
