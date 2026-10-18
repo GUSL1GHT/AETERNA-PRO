@@ -396,20 +396,21 @@ const inferMimeType = (filePath) => {
 
 // Render can reuse an old cached binary even after Node dependencies are rebuilt.
 // Update the bundled extractor before accepting URL downloads.
-const extractorReady = ytdlp.exec('', { update: true }, { timeout: 45000 })
+const extractorReady = ytdlp.exec('', { updateTo: 'nightly' }, { timeout: 45000 })
   .then(({ stdout }) => { console.log(`yt-dlp: ${stdout.trim().split('\n').pop()}`); return true; })
   .catch((error) => {
     console.error('No se pudo actualizar yt-dlp:', error.message);
     return false;
   });
 
-const runMediaDownload = (sourceUrl, outputTemplate) => ytdlp(sourceUrl, {
+const runMediaDownload = (sourceUrl, outputTemplate, userAgent) => ytdlp(sourceUrl, {
   output: outputTemplate,
   format: 'bestaudio/best',
   noPlaylist: true,
   restrictFilenames: true,
   maxFilesize: '100M',
-  noWarnings: true
+  noWarnings: true,
+  ...(userAgent ? { userAgent } : {})
 });
 
 const downloadMediaFromUrl = async (sourceUrl) => {
@@ -417,7 +418,13 @@ const downloadMediaFromUrl = async (sourceUrl) => {
   const outputTemplate = path.join(tempDir, 'source.%(ext)s');
   try {
     if (!await extractorReady) throw new Error('No se pudo actualizar el extractor de enlaces en el servidor.');
-    await runMediaDownload(sourceUrl, outputTemplate);
+    try {
+      await runMediaDownload(sourceUrl, outputTemplate);
+    } catch (firstError) {
+      if (!new URL(sourceUrl).hostname.endsWith('tiktok.com')) throw firstError;
+      // TikTok sometimes serves a challenge to yt-dlp's normal browser user agent.
+      await runMediaDownload(sourceUrl, outputTemplate, 'abc');
+    }
 
     const files = await fs.promises.readdir(tempDir);
     const downloaded = files
