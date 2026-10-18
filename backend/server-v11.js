@@ -404,7 +404,7 @@ const extractorReady = ytdlp.exec('', { updateTo: 'nightly' }, { timeout: 45000 
     return true;
   })
   .catch((error) => {
-    extractorStatus = 'fallo de actualización';
+    extractorStatus = `fallo de actualización: ${String(error.shortMessage || error.message).slice(0, 180)}`;
     console.error('No se pudo actualizar yt-dlp:', error.message);
     return false;
   });
