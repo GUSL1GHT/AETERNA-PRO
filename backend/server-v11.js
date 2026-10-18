@@ -4,6 +4,9 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const crypto = require('crypto');
+const { Readable } = require('stream');
+const { pipeline } = require('stream/promises');
 const ytdlp = require('yt-dlp-exec');
 const { GoogleGenAI, createUserContent, createPartFromUri } = require('@google/genai');
 
@@ -383,22 +386,42 @@ const inferMimeType = (filePath, audioOnly = false) => {
   return 'application/octet-stream';
 };
 
-// Render can reuse an old cached binary even after Node dependencies are rebuilt.
-// Update the bundled extractor before accepting URL downloads.
-let extractorStatus = 'actualizando';
-const extractorReady = ytdlp.exec('', { updateTo: 'nightly' }, { timeout: 45000 })
-  .then(({ stdout }) => {
-    extractorStatus = stdout.trim().split('\n').pop();
-    console.log(`yt-dlp: ${extractorStatus}`);
+// Render can reuse an old bundled binary. A pinned official release avoids
+// GitHub's unauthenticated API rate limit during service startup.
+const EXTRACTOR_URL = 'https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/download/2026.10.10.233141/yt-dlp_linux';
+const EXTRACTOR_SHA256 = '60606cef1a65d70f6639a85b45ebb7acf08dbb81831e134dd93939e23ca2b792';
+let extractor = ytdlp;
+let extractorStatus = 'preparando';
+const extractorReady = (async () => {
+  if (process.platform !== 'linux' || process.arch !== 'x64') {
+    extractorStatus = 'extractor incluido en la instalación';
     return true;
-  })
-  .catch((error) => {
-    extractorStatus = `fallo de actualización: ${String(error.stderr || error.stdout || error.message).slice(0, 240)}`;
-    console.error('No se pudo actualizar yt-dlp:', error.message);
-    return false;
-  });
+  }
+  const target = path.join(os.tmpdir(), 'aeterna-yt-dlp-2026.10.10');
+  if (!fs.existsSync(target)) {
+    const response = await fetch(EXTRACTOR_URL, { signal: AbortSignal.timeout(60000) });
+    if (!response.ok || !response.body) throw new Error(`Descarga HTTP ${response.status}`);
+    const temporary = `${target}.${process.pid}.tmp`;
+    try {
+      await pipeline(Readable.fromWeb(response.body), fs.createWriteStream(temporary));
+      const digest = crypto.createHash('sha256').update(await fs.promises.readFile(temporary)).digest('hex');
+      if (digest !== EXTRACTOR_SHA256) throw new Error('Hash del extractor incorrecto');
+      await fs.promises.chmod(temporary, 0o755);
+      await fs.promises.rename(temporary, target);
+    } finally {
+      await fs.promises.rm(temporary, { force: true });
+    }
+  }
+  extractor = ytdlp.create(target);
+  extractorStatus = 'nightly@2026.10.10 verificado';
+  return true;
+})().catch((error) => {
+  extractorStatus = 'extractor incluido; descarga externa no disponible';
+  console.error('No se pudo preparar yt-dlp:', error.message);
+  return true;
+});
 
-const runMediaDownload = (sourceUrl, outputTemplate, userAgent, audioOnly = false) => ytdlp(sourceUrl, {
+const runMediaDownload = (sourceUrl, outputTemplate, userAgent, audioOnly = false) => extractor(sourceUrl, {
   output: outputTemplate,
   format: audioOnly ? 'bestaudio/best' : new URL(sourceUrl).hostname.endsWith('tiktok.com')
     ? 'best[vcodec^=h264]/best[ext=mp4]/best/bestaudio'
@@ -417,7 +440,7 @@ const downloadMediaFromUrl = async (sourceUrl) => {
   const outputTemplate = path.join(tempDir, 'source.%(ext)s');
   let audioOnly = false;
   try {
-    if (!await extractorReady) throw new Error('No se pudo actualizar el extractor de enlaces en el servidor.');
+    await extractorReady;
     try {
       await runMediaDownload(sourceUrl, outputTemplate);
     } catch (firstError) {
