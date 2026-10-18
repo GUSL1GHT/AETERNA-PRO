@@ -36,6 +36,7 @@
             const [uploadProgress, setUploadProgress] = useState(0);
             const [urlProgress, setUrlProgress] = useState(0);
             const [urlTranscribing, setUrlTranscribing] = useState(false);
+            const [progressEstimateMs, setProgressEstimateMs] = useState(25000);
             const [title, setTitle] = useState("");
             const [platform, setPlatform] = useState("TikTok");
             const [project, setProject] = useState("");
@@ -64,11 +65,28 @@
                 if (!urlTranscribing) return;
                 const startedAt = Date.now();
                 const timer = window.setInterval(() => {
-                    const elapsedSeconds = (Date.now() - startedAt) / 1000;
-                    setUrlProgress(Math.min(95, Math.round(5 + elapsedSeconds * 0.75)));
+                    const elapsedMs = Date.now() - startedAt;
+                    const fraction = 1 - Math.exp(-3 * elapsedMs / progressEstimateMs);
+                    setUrlProgress(Math.min(95, Math.round(5 + 90 * fraction)));
                 }, 500);
                 return () => window.clearInterval(timer);
-            }, [urlTranscribing]);
+            }, [urlTranscribing, progressEstimateMs]);
+
+            const progressKeyForUrl = (url) => {
+                const host = new URL(url).hostname.toLowerCase();
+                const platform = host.includes('youtube.com') || host === 'youtu.be' ? 'youtube'
+                    : host.includes('tiktok.com') ? 'tiktok' : 'other';
+                return `aeterna-transcription-times-${platform}`;
+            };
+
+            const previousDurations = (key) => {
+                try {
+                    const durations = JSON.parse(localStorage.getItem(key) || '[]');
+                    return Array.isArray(durations) ? durations.filter(value => Number.isFinite(value) && value >= 1000 && value <= 300000).slice(-5) : [];
+                } catch (_) {
+                    return [];
+                }
+            };
 
             const resetOutput = () => {
                 setErrorMsg(null);
@@ -132,10 +150,18 @@
                     return;
                 }
 
+                const startedAt = Date.now();
+                let progressKey;
+                try { progressKey = progressKeyForUrl(url); } catch (_) { progressKey = 'aeterna-transcription-times-other'; }
+                const durations = previousDurations(progressKey);
+                const defaultEstimate = progressKey.endsWith('-youtube') ? 18000 : progressKey.endsWith('-tiktok') ? 25000 : 35000;
+                const estimate = durations.length ? durations.reduce((sum, value) => sum + value, 0) / durations.length : defaultEstimate;
+
                 setLoading(true);
                 setSaving(autoSave);
                 resetOutput();
                 setUrlProgress(5);
+                setProgressEstimateMs(estimate);
                 setUrlTranscribing(true);
                 setMediaFile(null);
                 if (previewUrl) {
@@ -157,6 +183,9 @@
                     applyTranscriptionResult(data, data.fileName || url);
                     setUrlProgress(100);
                     setSourceUrl("");
+                    try {
+                        localStorage.setItem(progressKey, JSON.stringify([...durations, Date.now() - startedAt].slice(-5)));
+                    } catch (_) {}
 
                     if (autoSave) {
                         await saveTranscriptToGitHub(data.transcription, {
@@ -305,7 +334,7 @@
                                         <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden" role="progressbar" aria-label={urlTranscribing ? 'Progreso estimado de la transcripción' : 'Progreso de subida del archivo'} aria-valuemin="0" aria-valuemax="100" aria-valuenow={urlTranscribing ? urlProgress : uploadProgress}>
                                             <div className="bg-cyan-500 h-2 transition-all duration-500" style={{ width: `${urlTranscribing ? urlProgress : uploadProgress}%` }}></div>
                                         </div>
-                                        {urlTranscribing && <p className="text-[10px] text-slate-400 mt-2">El porcentaje es orientativo; el tiempo depende del vídeo y del servidor.</p>}
+                                        {urlTranscribing && <p className="text-[10px] text-slate-400 mt-2">Estimación basada en transcripciones anteriores. El servidor no informa del avance exacto.</p>}
                                         {!urlTranscribing && uploadProgress === 100 && <p className="text-[10px] text-slate-400 mt-2">Archivo enviado. Esperando la transcripción.</p>}
                                     </div>
                                 )}
