@@ -396,9 +396,15 @@ const inferMimeType = (filePath) => {
 
 // Render can reuse an old cached binary even after Node dependencies are rebuilt.
 // Update the bundled extractor before accepting URL downloads.
+let extractorStatus = 'actualizando';
 const extractorReady = ytdlp.exec('', { updateTo: 'nightly' }, { timeout: 45000 })
-  .then(({ stdout }) => { console.log(`yt-dlp: ${stdout.trim().split('\n').pop()}`); return true; })
+  .then(({ stdout }) => {
+    extractorStatus = stdout.trim().split('\n').pop();
+    console.log(`yt-dlp: ${extractorStatus}`);
+    return true;
+  })
   .catch((error) => {
+    extractorStatus = 'fallo de actualización';
     console.error('No se pudo actualizar yt-dlp:', error.message);
     return false;
   });
@@ -514,7 +520,7 @@ const removePathSafe = async (targetPath) => {
 };
 
 app.get('/', (req, res) => {
-  res.json({ ok: true, service: 'AETERNA backend activo', version: 'beta-v1.1-url' });
+  res.json({ ok: true, service: 'AETERNA backend activo', version: 'beta-v1.1-nightly', extractorStatus });
 });
 
 app.get('/api/github-repos', async (req, res) => {
