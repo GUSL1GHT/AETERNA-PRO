@@ -101,18 +101,7 @@ const sanitizeSlug = (value) => {
 const cleanText = (value) => String(value || '').replace(/\r\n/g, '\n').trim();
 
 const normalizeKnownTerms = (value) => {
-  return cleanText(value)
-    .replace(/\bWind\s*Hook\b/gi, 'Windhawk')
-    .replace(/\bWindhook\b/gi, 'Windhawk')
-    .replace(/\bWindHawk\b/g, 'Windhawk')
-    .replace(/\bPinocho\b/gi, 'Pinokio')
-    .replace(/\bPinocchio\b/gi, 'Pinokio')
-    .replace(/\bPinoccio\b/gi, 'Pinokio')
-    .replace(/\bPinokio\b/gi, 'Pinokio')
-    .replace(/\bVoicebox\b/gi, 'Voicebox')
-    .replace(/\bEleven\s*Labs\b/gi, 'ElevenLabs')
-    .replace(/\bAce\s*Jam\b/gi, 'Ace Jam')
-    .replace(/\bReclip\b/gi, 'Reclip');
+  return cleanText(value);
 };
 
 const isWeakTitle = (value) => {
@@ -383,12 +372,12 @@ const inferPlatformFromUrl = (url) => {
   return 'URL';
 };
 
-const inferMimeType = (filePath) => {
+const inferMimeType = (filePath, audioOnly = false) => {
   const ext = path.extname(filePath).toLowerCase();
   if (ext === '.mp3') return 'audio/mpeg';
   if (ext === '.m4a') return 'audio/mp4';
   if (ext === '.mp4') return 'video/mp4';
-  if (ext === '.webm') return 'audio/webm';
+  if (ext === '.webm') return audioOnly ? 'audio/webm' : 'video/webm';
   if (ext === '.wav') return 'audio/wav';
   if (ext === '.ogg') return 'audio/ogg';
   return 'application/octet-stream';
@@ -409,27 +398,40 @@ const extractorReady = ytdlp.exec('', { updateTo: 'nightly' }, { timeout: 45000 
     return false;
   });
 
-const runMediaDownload = (sourceUrl, outputTemplate, userAgent) => ytdlp(sourceUrl, {
+const runMediaDownload = (sourceUrl, outputTemplate, userAgent, audioOnly = false) => ytdlp(sourceUrl, {
   output: outputTemplate,
-  format: 'bestaudio/best',
+  format: audioOnly ? 'bestaudio/best' : new URL(sourceUrl).hostname.endsWith('tiktok.com')
+    ? 'best[vcodec^=h264]/best[ext=mp4]/best/bestaudio'
+    : 'best[height<=480]/best[height<=720]/bestaudio/best',
   noPlaylist: true,
   restrictFilenames: true,
   maxFilesize: '100M',
   noWarnings: true,
+  jsRuntimes: `node:${process.execPath}`,
+  remoteComponents: 'ejs:github',
   ...(userAgent ? { userAgent } : {})
 });
 
 const downloadMediaFromUrl = async (sourceUrl) => {
   const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'aeterna-url-'));
   const outputTemplate = path.join(tempDir, 'source.%(ext)s');
+  let audioOnly = false;
   try {
     if (!await extractorReady) throw new Error('No se pudo actualizar el extractor de enlaces en el servidor.');
     try {
       await runMediaDownload(sourceUrl, outputTemplate);
     } catch (firstError) {
-      if (!new URL(sourceUrl).hostname.endsWith('tiktok.com')) throw firstError;
-      // TikTok sometimes serves a challenge to yt-dlp's normal browser user agent.
-      await runMediaDownload(sourceUrl, outputTemplate, 'abc');
+      for (const file of await fs.promises.readdir(tempDir)) {
+        await fs.promises.rm(path.join(tempDir, file), { force: true, recursive: true });
+      }
+      if (new URL(sourceUrl).hostname.endsWith('tiktok.com')) {
+        // TikTok sometimes serves a challenge to yt-dlp's normal browser user agent.
+        await runMediaDownload(sourceUrl, outputTemplate, 'abc');
+      } else {
+        // Large or unavailable video formats can still be transcribed from audio.
+        audioOnly = true;
+        await runMediaDownload(sourceUrl, outputTemplate, null, true);
+      }
     }
 
     const files = await fs.promises.readdir(tempDir);
@@ -438,7 +440,7 @@ const downloadMediaFromUrl = async (sourceUrl) => {
       .find(file => fs.existsSync(file) && fs.statSync(file).isFile());
 
     if (!downloaded) throw new Error('No se pudo descargar audio desde la URL.');
-    return { tempDir, filePath: downloaded, fileName: path.basename(downloaded), mimeType: inferMimeType(downloaded) };
+    return { tempDir, filePath: downloaded, fileName: path.basename(downloaded), mimeType: inferMimeType(downloaded, audioOnly) };
   } catch (error) {
     await fs.promises.rm(tempDir, { recursive: true, force: true });
     const details = stringifyError(error).toLowerCase();
@@ -478,15 +480,13 @@ Reglas obligatorias:
 - No conviertas la transcripción en una explicación.
 - Mantén el orden exacto del discurso.
 - Conserva nombres propios, marcas, herramientas, menús, programas y términos técnicos tal como se oigan.
-- No conviertas nombres raros de software en palabras comunes españolas.
-- Si una palabra suena a nombre de app, modelo, web, plugin, librería, IA o programa, consérvala como nombre propio si es posible.
-- Si oyes Windhook, WindHook o WindHawk y el contexto es Windows/mods/personalización, escribe Windhawk.
-- Si oyes Pinocho, Pinocchio o parecido y el contexto habla de instalar IA/software local, escribe Pinokio.
-- Si una palabra no se entiende, escribe [inaudible].
+- Si el archivo es vídeo, lee el texto visible para verificar la escritura de nombres propios mencionados en el audio. No añadas nombres que solo aparezcan en pantalla si no se pronuncian.
+- No sustituyas un nombre por otro programa parecido ni completes palabras a partir de conocimientos externos.
+- Si no puedes distinguir una palabra o un nombre, escribe [inaudible] en ese punto; no adivines.
 - No añadas títulos, introducciones, conclusiones, notas ni comentarios.
 - Devuelve únicamente la transcripción.`;
 
-  const models = ['gemini-2.5-flash-lite', 'gemini-2.5-flash'];
+  const models = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
   let lastError = null;
 
   for (const model of models) {
@@ -496,7 +496,8 @@ Reglas obligatorias:
         contents: createUserContent([
           createPartFromUri(uploadResult.uri, uploadResult.mimeType),
           prompt
-        ])
+        ]),
+        config: { temperature: 0 }
       });
 
       return {
@@ -616,6 +617,7 @@ app.post('/api/transcribe-url', async (req, res) => {
       fileName: downloaded.fileName,
       sourceUrl,
       platform: inferPlatformFromUrl(sourceUrl),
+      visualVerification: downloaded.mimeType.startsWith('video/'),
       suggestedTitle,
       transcription: result.transcription
     });
