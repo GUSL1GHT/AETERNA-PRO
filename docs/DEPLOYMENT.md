@@ -6,7 +6,7 @@ Publicar AETERNA PRO como web app accesible desde ordenador y movil.
 
 ## Requisitos
 
-- Repositorio con los archivos en la rama `beta-v1.1-url-whisper` mientras se publica Beta v1.1.
+- Repositorio con los archivos en la rama `beta-v1.1-url-whisper`, nombre histórico desde el que se publica Beta v1.2.
 - GitHub Pages activado.
 - Repositorio publico para publicacion sencilla.
 

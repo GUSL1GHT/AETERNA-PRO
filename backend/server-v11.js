@@ -639,7 +639,7 @@ const removePathSafe = async (targetPath) => {
 };
 
 app.get('/', (req, res) => {
-  res.json({ ok: true, service: 'AETERNA backend activo', version: 'beta-v1.1-nightly', extractorStatus });
+  res.json({ ok: true, service: 'AETERNA backend activo', version: 'beta-v1.2', extractorStatus });
 });
 
 app.get('/api/github-auth/config', (req, res) => {
@@ -888,5 +888,5 @@ app.post('/api/save-transcript-to-github', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Servidor AETERNA beta v1.1 activo en puerto ${PORT}`);
+  console.log(`Servidor AETERNA beta v1.2 activo en puerto ${PORT}`);
 });

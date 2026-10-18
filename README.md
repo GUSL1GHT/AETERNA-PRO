@@ -4,10 +4,10 @@ Aplicación web y PWA para transcribir enlaces o archivos de audio y vídeo y gu
 
 ## Estado
 
-- La interfaz Beta v1.1 y la transcripción por URL están en `beta-v1.1-url-whisper`.
+- La interfaz Beta v1.2 y la transcripción por URL se despliegan desde `beta-v1.1-url-whisper` (nombre histórico de la rama configurada en Pages y Render).
 - `main` contiene una versión anterior que solo admite archivos.
-- El backend de Beta v1.1 arranca con `backend/server-v11.js` según `backend/package.json`.
-- Las nuevas transcripciones se guardan en [AETERNA-TRANSCRIPTS](https://github.com/GUSL1GHT/AETERNA-TRANSCRIPTS). `sources/aeterna/inbox/` conserva fuentes históricas.
+- El backend de Beta v1.2 arranca con `backend/server-v11.js` según `backend/package.json`.
+- El usuario elige un repositorio autorizado para guardar las transcripciones. En la instalación actual, la GitHub App es privada y solo funciona con la cuenta GUSL1GHT; [AETERNA-TRANSCRIPTS](https://github.com/GUSL1GHT/AETERNA-TRANSCRIPTS) es la biblioteca elegida. `sources/aeterna/inbox/` conserva fuentes históricas.
 
 ## Probar en Windows
 

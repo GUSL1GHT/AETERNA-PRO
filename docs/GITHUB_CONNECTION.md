@@ -1,20 +1,20 @@
 # Conexión de GitHub para AETERNA
 
-Cada usuario puede guardar en un repositorio de GitHub que haya autorizado para AETERNA. La biblioteca de GUSLIGHT es [GUSL1GHT/AETERNA-TRANSCRIPTS](https://github.com/GUSL1GHT/AETERNA-TRANSCRIPTS).
+La interfaz permite elegir un repositorio autorizado. Por ahora la GitHub App es privada y solo la cuenta GUSL1GHT puede instalarla. La biblioteca actual es [GUSL1GHT/AETERNA-TRANSCRIPTS](https://github.com/GUSL1GHT/AETERNA-TRANSCRIPTS).
 
 ## GitHub App
 
 - Nombre sugerido: `AETERNA-Transcripts-Connector`.
 - Página: `https://gusl1ght.github.io/AETERNA-PRO/`.
 - Callback: `https://aeterna-pro-backend.onrender.com/api/github-auth/callback`.
-- Visibilidad: pública para permitir instalaciones en otras cuentas.
+- Visibilidad actual: privada. Solo cambiarla a pública si se decide abrir el uso a otras cuentas.
 - Webhooks: desactivados.
 - Permisos de repositorio: `Contents: Read and write`; los demás sin acceso adicional.
-- Cada usuario instala la aplicación solo en los repositorios donde quiera guardar transcripciones.
+- El propietario instala la aplicación solo en los repositorios donde quiera guardar transcripciones. La selección de repositorio ya está preparada para una futura apertura a otros usuarios.
 
 En Render, configurar `GITHUB_APP_CLIENT_ID` y `GITHUB_APP_CLIENT_SECRET` como variables de entorno del servicio de backend. El secreto se genera en la configuración de la GitHub App y no se guarda en Git ni se pega en el chat. El ID de cliente no es secreto.
 
-Tras el despliegue, abrir AETERNA y elegir **Conectar GitHub**. Si no aparece ningún repositorio, usar **Añadir repositorio** para autorizar uno y después **Actualizar lista**. El usuario elige en **Guardar en** dónde irán sus transcripciones. Las credenciales del servidor se configuran una sola vez; los usuarios no copian claves. La sesión temporal se guarda en la pestaña del navegador; si Render reinicia el proceso o se cierra la pestaña, puede ser necesario conectar de nuevo.
+Tras el despliegue, abrir AETERNA y elegir **Conectar GitHub**. Si no aparece ningún repositorio, usar **Añadir repositorio** para autorizar uno y después **Actualizar lista**. El propietario elige en **Guardar en** dónde irán sus transcripciones. Las credenciales del servidor se configuran una sola vez; el usuario no copia claves. La sesión temporal se guarda en la pestaña del navegador; si Render reinicia el proceso o se cierra la pestaña, puede ser necesario conectar de nuevo.
 
 ## Comprobación
 
