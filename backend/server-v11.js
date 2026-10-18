@@ -442,32 +442,32 @@ const runMediaDownload = (sourceUrl, outputTemplate, userAgent, audioOnly = fals
 const downloadMediaFromUrl = async (sourceUrl) => {
   const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'aeterna-url-'));
   const outputTemplate = path.join(tempDir, 'source.%(ext)s');
-  let audioOnly = false;
+  const isTikTok = new URL(sourceUrl).hostname.endsWith('tiktok.com');
+  const attempts = isTikTok
+    ? [
+        { audioOnly: false }, { audioOnly: false, userAgent: 'abc' },
+        { audioOnly: true }, { audioOnly: true, userAgent: 'abc' }
+      ]
+    : [{ audioOnly: false }, { audioOnly: true }];
   try {
     await extractorReady;
-    try {
-      await runMediaDownload(sourceUrl, outputTemplate);
-    } catch (firstError) {
-      for (const file of await fs.promises.readdir(tempDir)) {
-        await fs.promises.rm(path.join(tempDir, file), { force: true, recursive: true });
-      }
-      if (new URL(sourceUrl).hostname.endsWith('tiktok.com')) {
-        // TikTok sometimes serves a challenge to yt-dlp's normal browser user agent.
-        await runMediaDownload(sourceUrl, outputTemplate, 'abc');
-      } else {
-        // Large or unavailable video formats can still be transcribed from audio.
-        audioOnly = true;
-        await runMediaDownload(sourceUrl, outputTemplate, null, true);
+    let lastError;
+    for (const attempt of attempts) {
+      try {
+        await runMediaDownload(sourceUrl, outputTemplate, attempt.userAgent, attempt.audioOnly);
+        const files = await fs.promises.readdir(tempDir);
+        const downloaded = files.map(file => path.join(tempDir, file))
+          .find(file => fs.existsSync(file) && fs.statSync(file).isFile() && fs.statSync(file).size > 0);
+        if (!downloaded) throw new Error('No se descargó ningún archivo utilizable.');
+        return { tempDir, filePath: downloaded, fileName: path.basename(downloaded), mimeType: inferMimeType(downloaded, attempt.audioOnly) };
+      } catch (error) {
+        lastError = error;
+        for (const file of await fs.promises.readdir(tempDir)) {
+          await fs.promises.rm(path.join(tempDir, file), { force: true, recursive: true });
+        }
       }
     }
-
-    const files = await fs.promises.readdir(tempDir);
-    const downloaded = files
-      .map(file => path.join(tempDir, file))
-      .find(file => fs.existsSync(file) && fs.statSync(file).isFile());
-
-    if (!downloaded) throw new Error('No se pudo descargar audio desde la URL.');
-    return { tempDir, filePath: downloaded, fileName: path.basename(downloaded), mimeType: inferMimeType(downloaded, audioOnly) };
+    throw lastError;
   } catch (error) {
     await fs.promises.rm(tempDir, { recursive: true, force: true });
     const details = stringifyError(error).toLowerCase();
@@ -481,11 +481,13 @@ const downloadMediaFromUrl = async (sourceUrl) => {
   }
 };
 
-const transcriptionPrompt = `Transcribe el audio o vídeo de forma literal, completa y en español de España.
+const transcriptionPrompt = `Transcribe todo lo que se dice en el audio o vídeo. Devuelve siempre el texto en español de España.
 
 Reglas obligatorias:
 - No resumas.
-- No reescribas.
+- Si se habla en otro idioma, traduce fielmente al español cada frase, sin resumir ni añadir contenido. No devuelvas la transcripción en el idioma original.
+- Si se habla en español, conserva literalmente las palabras pronunciadas.
+- No reescribas ni corrijas lo que se dice, salvo lo necesario para traducir otro idioma.
 - No mejores el estilo.
 - No conviertas la transcripción en una explicación.
 - Mantén el orden exacto del discurso.
