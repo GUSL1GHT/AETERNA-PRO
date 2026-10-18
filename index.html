@@ -44,6 +44,27 @@
             const [githubConnected, setGithubConnected] = useState(false);
             const [githubLogin, setGithubLogin] = useState('');
             const [githubConfigured, setGithubConfigured] = useState(false);
+            const [githubRepositories, setGithubRepositories] = useState([]);
+            const [githubRepository, setGithubRepository] = useState('');
+            const [githubInstallUrl, setGithubInstallUrl] = useState('');
+            const [repositoryLoading, setRepositoryLoading] = useState(false);
+
+            const loadRepositories = async (session) => {
+                setRepositoryLoading(true);
+                try {
+                    const response = await fetch(`${BACKEND_URL}/api/github-auth/repositories`, { headers: { Authorization: `Bearer ${session}` } });
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(data.error || 'No se pudieron cargar los repositorios.');
+                    const list = data.repositories || [];
+                    setGithubRepositories(list);
+                    setGithubInstallUrl(data.installUrl || '');
+                    setGithubRepository(current => list.some(repo => repo.fullName === current) ? current : (list.length === 1 ? list[0].fullName : ''));
+                } catch (error) {
+                    setErrorMsg(error.message);
+                } finally {
+                    setRepositoryLoading(false);
+                }
+            };
 
             useEffect(() => {
                 const loadGithub = async () => {
@@ -59,12 +80,14 @@
                         const configResponse = await fetch(`${BACKEND_URL}/api/github-auth/config`);
                         const config = await configResponse.json();
                         setGithubConfigured(!!config.configured);
+                        setGithubInstallUrl(config.installUrl || '');
                         if (session && config.configured) {
                             const response = await fetch(`${BACKEND_URL}/api/github-auth/status`, { headers: { Authorization: `Bearer ${session}` } });
                             const data = await response.json();
                             if (response.ok && data.connected) {
                                 setGithubConnected(true);
                                 setGithubLogin(data.login || '');
+                                await loadRepositories(session);
                             } else {
                                 sessionStorage.removeItem('aeterna-github-session');
                                 setGithubSession('');
@@ -83,6 +106,8 @@
                 setGithubSession('');
                 setGithubConnected(false);
                 setGithubLogin('');
+                setGithubRepositories([]);
+                setGithubRepository('');
             };
 
             useEffect(() => {
@@ -151,6 +176,7 @@
                     headers: { "Content-Type": "application/json", Authorization: `Bearer ${githubSession}` },
                     body: JSON.stringify({
                         title: meta.title ?? title,
+                        repository: githubRepository,
                         platform: meta.platform ?? platform,
                         project,
                         transcription,
@@ -164,7 +190,7 @@
                     if (response.status === 401) await disconnectGithub();
                     throw new Error(data.error || `Error del servidor (${response.status})`);
                 }
-                setSaveMsg(`Guardado en GitHub: ${data.path}`);
+                setSaveMsg(`Guardado en ${data.repository}: ${data.path}`);
                 return data;
             };
 
@@ -326,6 +352,18 @@
                                             <button onClick={() => { location.href = `${BACKEND_URL}/api/github-auth/start`; }} className="text-cyan-300 font-semibold hover:text-cyan-200">Conectar GitHub</button>
                                         ) : <span className="text-slate-400">Conexión de GitHub en configuración</span>}
                                     </div>
+                                    {githubConnected && <div className="mb-3 text-left text-xs space-y-2">
+                                        <label htmlFor="github-repository" className="block text-slate-300 font-semibold">Guardar en</label>
+                                        <select id="github-repository" value={githubRepository} onChange={(e) => setGithubRepository(e.target.value)} disabled={repositoryLoading} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-slate-100">
+                                            <option value="">{repositoryLoading ? 'Cargando repositorios...' : 'Selecciona un repositorio'}</option>
+                                            {githubRepositories.map(repo => <option key={repo.fullName} value={repo.fullName}>{repo.fullName}{repo.private ? ' · privado' : ''}</option>)}
+                                        </select>
+                                        <div className="flex justify-between gap-2 text-cyan-300">
+                                            {githubInstallUrl && <a href={githubInstallUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">Añadir repositorio</a>}
+                                            <button onClick={() => loadRepositories(githubSession)} disabled={repositoryLoading} className="hover:underline disabled:opacity-50">Actualizar lista</button>
+                                        </div>
+                                        {!githubRepositories.length && !repositoryLoading && <p className="text-slate-400">Autoriza un repositorio con «Añadir repositorio» y actualiza la lista.</p>}
+                                    </div>}
                                     <input type="url" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} disabled={loading} placeholder="https://..." className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 text-sm text-slate-100 placeholder-slate-500 text-left mb-3 disabled:opacity-70" />
                                     {urlTranscribing ? (
                                         <div className="rounded-xl border border-cyan-900/60 bg-slate-900/60 p-3 text-left" aria-live="polite">
@@ -341,7 +379,7 @@
                                     ) : (
                                         <div className="grid grid-cols-1 gap-2">
                                             <button onClick={() => handleUrlTranscribe(false)} disabled={loading || !sourceUrl.trim()} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">Transcribir URL</button>
-                                            {githubConnected && <button onClick={() => handleUrlTranscribe(true)} disabled={loading || saving || !sourceUrl.trim()} className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">Transcribir y guardar en GitHub</button>}
+                                            {githubConnected && githubRepository && <button onClick={() => handleUrlTranscribe(true)} disabled={loading || saving || !sourceUrl.trim()} className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">Transcribir y guardar en GitHub</button>}
                                         </div>
                                     )}
                                 </div>
@@ -398,7 +436,7 @@
                                             {result}
                                         </div>
 
-                                        {githubConnected && <div className="shrink-0 bg-slate-950 p-3 rounded-2xl border border-slate-700 space-y-2 text-center">
+                                        {githubConnected && githubRepository && <div className="shrink-0 bg-slate-950 p-3 rounded-2xl border border-slate-700 space-y-2 text-center">
                                             <div>
                                                 <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest">Guardar como fuente</p>
                                                 <p className="text-xs text-slate-400 mt-1">Ajusta título, elige proyecto y guarda si quieres.</p>
@@ -407,10 +445,10 @@
                                             <input type="text" value={project} onChange={(e) => setProject(e.target.value)} placeholder="Proyecto relacionado (opcional)" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-500 text-left" />
                                         </div>}
 
-                                        <div className={`shrink-0 grid ${githubConnected ? 'grid-cols-3' : 'grid-cols-2'} gap-2 md:gap-3`}>
+                                        <div className={`shrink-0 grid ${githubConnected && githubRepository ? 'grid-cols-3' : 'grid-cols-2'} gap-2 md:gap-3`}>
                                             <button onClick={copyToClipboard} className="bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-xs font-bold border border-slate-700 transition-all">Copiar</button>
                                             <button onClick={downloadTextFile} className="bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-xs font-bold border border-slate-700 transition-all">TXT</button>
-                                            {githubConnected && <button onClick={saveToGitHub} disabled={saving} className="bg-emerald-700 hover:bg-emerald-600 py-3 rounded-xl text-xs font-bold border border-emerald-600 transition-all disabled:opacity-50">{saving ? "Guardando..." : "GitHub"}</button>}
+                                            {githubConnected && githubRepository && <button onClick={saveToGitHub} disabled={saving} className="bg-emerald-700 hover:bg-emerald-600 py-3 rounded-xl text-xs font-bold border border-emerald-600 transition-all disabled:opacity-50">{saving ? "Guardando..." : "GitHub"}</button>}
                                         </div>
                                     </>
                                 )}
