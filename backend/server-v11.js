@@ -77,6 +77,10 @@ const buildPublicGeminiError = (error) => {
     };
   }
 
+  if (text.includes('invalid_argument') || text.includes('unsupported mime')) {
+    return { status: 400, retryAfterSeconds: null, message: 'Gemini no pudo procesar este vídeo. Comprueba que sea público o sube el archivo manualmente.' };
+  }
+
   return {
     status: 500,
     retryAfterSeconds: null,
@@ -439,13 +443,11 @@ const downloadMediaFromUrl = async (sourceUrl) => {
   const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'aeterna-url-'));
   const outputTemplate = path.join(tempDir, 'source.%(ext)s');
   let audioOnly = false;
-  let firstDownloadError = null;
   try {
     await extractorReady;
     try {
       await runMediaDownload(sourceUrl, outputTemplate);
     } catch (firstError) {
-      firstDownloadError = firstError;
       for (const file of await fs.promises.readdir(tempDir)) {
         await fs.promises.rm(path.join(tempDir, file), { force: true, recursive: true });
       }
@@ -468,19 +470,14 @@ const downloadMediaFromUrl = async (sourceUrl) => {
     return { tempDir, filePath: downloaded, fileName: path.basename(downloaded), mimeType: inferMimeType(downloaded, audioOnly) };
   } catch (error) {
     await fs.promises.rm(tempDir, { recursive: true, force: true });
-    const summarize = (value) => {
-      const lines = String(value?.stderr || value?.message || '').split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-      return (lines.findLast(line => line.startsWith('ERROR:')) || lines.at(-1) || '').slice(0, 250);
-    };
-    const diagnostic = `${summarize(firstDownloadError)} | ${summarize(error)}`;
     const details = stringifyError(error).toLowerCase();
     if (details.includes('impersonat') || details.includes('extract') || details.includes('unsupported url')) {
-      throw Object.assign(new Error('La plataforma ha rechazado la descarga del enlace. Puedes subir el archivo manualmente.'), { diagnostic });
+      throw new Error('La plataforma ha rechazado la descarga del enlace. Puedes subir el archivo manualmente.');
     }
     if (details.includes('file is larger') || details.includes('max-filesize')) {
       throw new Error('El archivo supera el límite de 100 MB.');
     }
-    throw Object.assign(new Error('No se pudo descargar este enlace. Comprueba que sea público o sube el archivo manualmente.'), { diagnostic });
+    throw new Error('No se pudo descargar este enlace. Comprueba que sea público o sube el archivo manualmente.');
   }
 };
 
@@ -547,6 +544,16 @@ const transcribeWithGeminiFile = async ({ filePath, mimeType }) => {
 const isYouTubeUrl = (value) => {
   const hostname = new URL(value).hostname.toLowerCase();
   return hostname === 'youtube.com' || hostname.endsWith('.youtube.com') || hostname === 'youtu.be';
+};
+
+const canonicalYouTubeUrl = (value) => {
+  const url = new URL(value);
+  const parts = url.pathname.split('/').filter(Boolean);
+  const id = url.hostname.toLowerCase() === 'youtu.be' ? parts[0]
+    : parts[0] === 'shorts' || parts[0] === 'live' ? parts[1]
+      : url.searchParams.get('v');
+  if (!/^[a-zA-Z0-9_-]{11}$/.test(id || '')) return null;
+  return `https://www.youtube.com/watch?v=${id}`;
 };
 
 const removePathSafe = async (targetPath) => {
@@ -643,7 +650,9 @@ app.post('/api/transcribe-url', async (req, res) => {
     }
 
     if (isYouTubeUrl(sourceUrl)) {
-      const result = await generateTranscription({ fileData: { fileUri: sourceUrl, mimeType: 'video/*' } });
+      const canonicalUrl = canonicalYouTubeUrl(sourceUrl);
+      if (!canonicalUrl) return res.status(400).json({ success: false, error: 'No se ha encontrado un identificador de vídeo de YouTube válido.' });
+      const result = await generateTranscription({ fileData: { fileUri: canonicalUrl, mimeType: 'video/*' } });
       return res.json({
         success: true,
         model: result.model,
@@ -678,8 +687,7 @@ app.post('/api/transcribe-url', async (req, res) => {
     res.status(publicError.status).json({
       success: false,
       error: publicError.message,
-      retryAfterSeconds: publicError.retryAfterSeconds,
-      diagnostic: error.diagnostic || null
+      retryAfterSeconds: publicError.retryAfterSeconds
     });
   } finally {
     await removePathSafe(tempDir);
