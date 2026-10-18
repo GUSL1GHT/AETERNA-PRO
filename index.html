@@ -281,16 +281,16 @@
             const isAudio = mediaFile?.type?.startsWith("audio/");
 
             return (
-                <div className="min-h-dvh w-full bg-slate-950 font-sans p-2 md:p-3">
-                    <div className="min-h-[calc(100dvh-1.5rem)] max-w-6xl mx-auto bg-[#0d1521] border border-slate-800 rounded-2xl shadow-2xl flex flex-col">
+                <div className="h-dvh w-full overflow-hidden bg-slate-950 font-sans p-2 md:p-3">
+                    <div className="h-full min-h-0 max-w-6xl mx-auto bg-[#0d1521] border border-slate-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
                         <header className="shrink-0 px-3 py-2 md:px-4 md:py-3 border-b border-slate-800 text-center">
                             <h1 className="text-2xl md:text-4xl font-light text-white tracking-[0.24em] uppercase leading-none">AETERNA</h1>
                             <p className="text-[8px] md:text-[9px] text-slate-500 tracking-[0.35em] uppercase mt-1">Digital Synthesis</p>
                             <p className="hidden sm:block text-xs text-slate-400 mt-2">Convierte enlaces o archivos en fuentes de conocimiento para GitHub.</p>
                         </header>
 
-                        <main className="flex-1 grid grid-cols-1 lg:grid-cols-[390px_1fr] gap-0">
-                            <section className={`${hasOutput ? 'hidden lg:flex' : 'flex'} lg:border-r border-slate-800 p-2 md:p-4 flex-col gap-3`}>
+                        <main className="flex-1 min-h-0 overflow-hidden grid grid-cols-1 lg:grid-cols-[390px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] gap-0">
+                            <section className={`${hasOutput ? 'hidden lg:flex' : 'flex'} min-h-0 overflow-y-auto lg:border-r border-slate-800 p-2 md:p-4 flex-col gap-3`}>
                                 <div className="bg-slate-950/70 p-3 rounded-2xl border border-cyan-900/60 text-center shrink-0">
                                     <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest mb-1">Paso 1: Pega el enlace</p>
                                     <p className="text-xs text-slate-400 mb-3">TikTok, YouTube u otra plataforma compatible. No tienes que descargar el vídeo.</p>
@@ -338,7 +338,7 @@
                                 </details>}
                             </section>
 
-                            <section className={`${hasOutput ? 'flex' : 'hidden lg:flex'} min-h-0 p-2 md:p-4 flex-col gap-2 md:gap-3`}>
+                            <section className={`${hasOutput ? 'flex' : 'hidden lg:flex'} min-h-0 overflow-hidden p-2 md:p-4 flex-col gap-2 md:gap-3`}>
                                 {hasOutput && <button onClick={resetOutput} className="lg:hidden self-start text-cyan-400 text-xs font-bold px-2 py-1">← Volver al formulario</button>}
                                 {errorMsg && (
                                     <div className="shrink-0 p-3 bg-red-950/40 border border-red-900/60 rounded-2xl text-red-200 text-xs font-mono whitespace-pre-wrap overflow-y-auto max-h-[42dvh] md:max-h-[35dvh]">
@@ -362,7 +362,7 @@
                                     <>
                                         {resultMeta?.platform === 'YouTube' && <p className="text-xs text-sky-300">Si YouTube reproduce un doblaje automático, la transcripción se traduce al español desde el audio disponible y puede no coincidir palabra por palabra con ese doblaje.</p>}
                                         {!visualVerification && resultMeta?.sourceUrl && <p className="text-xs text-amber-300">Solo audio disponible: revisa los nombres de programas con el vídeo original.</p>}
-                                        <div className="min-h-40 max-h-[45dvh] bg-slate-950 p-3 md:p-4 rounded-2xl border border-slate-700 text-slate-100 text-sm whitespace-pre-wrap leading-relaxed overflow-y-auto shadow-inner">
+                                        <div className="flex-1 min-h-0 bg-slate-950 p-3 md:p-4 rounded-2xl border border-slate-700 text-slate-100 text-sm whitespace-pre-wrap leading-relaxed overflow-y-auto shadow-inner" role="region" aria-label="Texto transcrito" tabIndex="0">
                                             {result}
                                         </div>
 
