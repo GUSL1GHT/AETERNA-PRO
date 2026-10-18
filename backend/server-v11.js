@@ -643,7 +643,7 @@ app.post('/api/transcribe-url', async (req, res) => {
     }
 
     if (isYouTubeUrl(sourceUrl)) {
-      const result = await generateTranscription({ fileData: { fileUri: sourceUrl } });
+      const result = await generateTranscription({ fileData: { fileUri: sourceUrl, mimeType: 'video/*' } });
       return res.json({
         success: true,
         model: result.model,
