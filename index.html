@@ -294,54 +294,48 @@
                                 <div className="bg-slate-950/70 p-3 rounded-2xl border border-cyan-900/60 text-center shrink-0">
                                     <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest mb-1">Paso 1: Pega el enlace</p>
                                     <p className="text-xs text-slate-400 mb-3">TikTok, YouTube u otra plataforma compatible. No tienes que descargar el vídeo.</p>
-                                    <input type="url" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} placeholder="https://..." className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 text-sm text-slate-100 placeholder-slate-500 text-left mb-3" />
-                                    <div className="grid grid-cols-1 gap-2">
-                                        <button onClick={() => handleUrlTranscribe(false)} disabled={loading || !sourceUrl.trim()} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">Transcribir URL</button>
-                                        <button onClick={() => handleUrlTranscribe(true)} disabled={loading || saving || !sourceUrl.trim()} className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">{saving ? "Guardando..." : "Transcribir y guardar en GitHub"}</button>
-                                    </div>
+                                    <input type="url" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} disabled={loading} placeholder="https://..." className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 text-sm text-slate-100 placeholder-slate-500 text-left mb-3 disabled:opacity-70" />
+                                    {urlTranscribing ? (
+                                        <div className="rounded-xl border border-cyan-900/60 bg-slate-900/60 p-3 text-left" aria-live="polite">
+                                            <div className="flex justify-between gap-3 text-xs text-cyan-300 mb-2">
+                                                <span>{saving ? 'Transcribiendo y guardando' : 'Transcribiendo'} · progreso estimado</span>
+                                                <span>{urlProgress}%</span>
+                                            </div>
+                                            <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden" role="progressbar" aria-label="Progreso estimado de la transcripción" aria-valuemin="0" aria-valuemax="100" aria-valuenow={urlProgress}>
+                                                <div className="bg-cyan-500 h-2 transition-all duration-500" style={{ width: `${urlProgress}%` }}></div>
+                                            </div>
+                                            <p className="text-[10px] text-slate-400 mt-2">Estimación basada en transcripciones anteriores. El servidor no informa del avance exacto.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-1 gap-2">
+                                            <button onClick={() => handleUrlTranscribe(false)} disabled={loading || !sourceUrl.trim()} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">Transcribir URL</button>
+                                            <button onClick={() => handleUrlTranscribe(true)} disabled={loading || saving || !sourceUrl.trim()} className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">Transcribir y guardar en GitHub</button>
+                                        </div>
+                                    )}
                                 </div>
 
-                                <div className="bg-slate-950 p-3 md:p-4 rounded-2xl border border-slate-700 text-center shrink-0">
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Respaldo: Subir archivo</p>
-                                    <p className="text-xs text-slate-500 mb-3">Úsalo solo si la URL falla.</p>
-                                    <input type="file" accept="video/*,audio/*" onChange={handleFileChange} className="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-slate-700 file:text-slate-100 hover:file:bg-slate-600" />
-                                    {mediaFile && <p className="text-xs text-emerald-400 mt-3 font-medium truncate">{mediaFile.name}</p>}
-                                </div>
-
-                                {mediaFile && <div className="rounded-2xl border border-slate-800 bg-slate-950/45 max-h-56 flex items-center justify-center overflow-hidden">
-                                    {mediaFile && isVideo && previewUrl && (
-                                        <video src={previewUrl} controls className="w-full h-full object-contain bg-black" />
-                                    )}
-
-                                    {mediaFile && isAudio && previewUrl && (
-                                        <div className="w-full px-4 text-center">
-                                            <p className="text-xs text-slate-500 uppercase tracking-[0.25em] mb-4">Audio cargado</p>
-                                            <audio src={previewUrl} controls className="w-full" />
-                                        </div>
-                                    )}
-
-                                    {mediaFile && !isVideo && !isAudio && (
-                                        <div className="text-center text-slate-500 text-sm px-4">Archivo preparado para transcribir.</div>
-                                    )}
-                                </div>}
-
-                                {loading && (
-                                    <div className="shrink-0 rounded-xl border border-cyan-900/60 bg-slate-950/70 p-3" aria-live="polite">
-                                        <div className="flex justify-between gap-3 text-xs text-cyan-300 mb-2">
-                                            <span>{urlTranscribing ? 'Transcribiendo · progreso estimado' : 'Subiendo archivo'}</span>
-                                            <span>{urlTranscribing ? urlProgress : uploadProgress}%</span>
-                                        </div>
-                                        <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden" role="progressbar" aria-label={urlTranscribing ? 'Progreso estimado de la transcripción' : 'Progreso de subida del archivo'} aria-valuemin="0" aria-valuemax="100" aria-valuenow={urlTranscribing ? urlProgress : uploadProgress}>
-                                            <div className="bg-cyan-500 h-2 transition-all duration-500" style={{ width: `${urlTranscribing ? urlProgress : uploadProgress}%` }}></div>
-                                        </div>
-                                        {urlTranscribing && <p className="text-[10px] text-slate-400 mt-2">Estimación basada en transcripciones anteriores. El servidor no informa del avance exacto.</p>}
-                                        {!urlTranscribing && uploadProgress === 100 && <p className="text-[10px] text-slate-400 mt-2">Archivo enviado. Esperando la transcripción.</p>}
+                                {!urlTranscribing && <details className="bg-slate-950 p-3 md:p-4 rounded-2xl border border-slate-700 shrink-0 group">
+                                    <summary className="cursor-pointer text-xs text-slate-400 font-bold text-center list-none focus-visible:outline-cyan-400">Si falla el enlace, subir un archivo <span aria-hidden="true" className="ml-1">▾</span></summary>
+                                    <div className="mt-4 flex flex-col gap-3 text-center">
+                                        <p className="text-xs text-slate-500">Opción de respaldo para enlaces que la plataforma no permite descargar.</p>
+                                        <input type="file" accept="video/*,audio/*" onChange={handleFileChange} disabled={loading} className="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-slate-700 file:text-slate-100 hover:file:bg-slate-600" />
+                                        {mediaFile && <p className="text-xs text-emerald-400 font-medium truncate">{mediaFile.name}</p>}
+                                        {mediaFile && <div className="rounded-2xl border border-slate-800 bg-slate-950/45 max-h-56 flex items-center justify-center overflow-hidden">
+                                            {isVideo && previewUrl && <video src={previewUrl} controls className="w-full h-full object-contain bg-black" />}
+                                            {isAudio && previewUrl && <div className="w-full px-4 text-center"><p className="text-xs text-slate-500 uppercase tracking-[0.25em] mb-4">Audio cargado</p><audio src={previewUrl} controls className="w-full" /></div>}
+                                            {!isVideo && !isAudio && <div className="text-center text-slate-500 text-sm px-4">Archivo preparado para transcribir.</div>}
+                                        </div>}
+                                        {loading && mediaFile ? (
+                                            <div className="rounded-xl border border-cyan-900/60 bg-slate-900/60 p-3 text-left" aria-live="polite">
+                                                <div className="flex justify-between gap-3 text-xs text-cyan-300 mb-2"><span>Subiendo archivo</span><span>{uploadProgress}%</span></div>
+                                                <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden" role="progressbar" aria-label="Progreso de subida del archivo" aria-valuemin="0" aria-valuemax="100" aria-valuenow={uploadProgress}><div className="bg-cyan-500 h-2 transition-all duration-500" style={{ width: `${uploadProgress}%` }}></div></div>
+                                                {uploadProgress === 100 && <p className="text-[10px] text-slate-400 mt-2">Archivo enviado. Esperando la transcripción.</p>}
+                                            </div>
+                                        ) : (
+                                            <button onClick={handleFileTranscribe} disabled={!mediaFile} className="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">Transcribir archivo manual</button>
+                                        )}
                                     </div>
-                                )}
-
-                                <button onClick={handleFileTranscribe} disabled={loading || !mediaFile} className="shrink-0 w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-4 rounded-xl transition-all shadow-lg disabled:opacity-50 text-base">
-                                    {loading && mediaFile ? `Procesando... ${uploadProgress}%` : "Transcribir archivo manual"}
-                                </button>
+                                </details>}
                             </section>
 
                             <section className={`${hasOutput ? 'flex' : 'hidden lg:flex'} min-h-0 p-2 md:p-4 flex-col gap-2 md:gap-3`}>
