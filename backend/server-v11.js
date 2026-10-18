@@ -484,24 +484,7 @@ const downloadMediaFromUrl = async (sourceUrl) => {
   }
 };
 
-const transcribeWithGeminiFile = async ({ filePath, mimeType }) => {
-  const uploadResult = await ai.files.upload({
-    file: filePath,
-    config: { mimeType }
-  });
-
-  let fileState = await ai.files.get({ name: uploadResult.name });
-
-  while (fileState.state === 'PROCESSING') {
-    await sleep(3000);
-    fileState = await ai.files.get({ name: uploadResult.name });
-  }
-
-  if (fileState.state !== 'ACTIVE') {
-    throw new Error(`El archivo falló con estado: ${fileState.state}`);
-  }
-
-  const prompt = `Transcribe el audio o vídeo de forma literal, completa y en español de España.
+const transcriptionPrompt = `Transcribe el audio o vídeo de forma literal, completa y en español de España.
 
 Reglas obligatorias:
 - No resumas.
@@ -516,6 +499,7 @@ Reglas obligatorias:
 - No añadas títulos, introducciones, conclusiones, notas ni comentarios.
 - Devuelve únicamente la transcripción.`;
 
+const generateTranscription = async (mediaPart) => {
   const models = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
   let lastError = null;
 
@@ -524,8 +508,8 @@ Reglas obligatorias:
       const response = await ai.models.generateContent({
         model,
         contents: createUserContent([
-          createPartFromUri(uploadResult.uri, uploadResult.mimeType),
-          prompt
+          mediaPart,
+          transcriptionPrompt
         ]),
         config: { temperature: 0 }
       });
@@ -543,6 +527,26 @@ Reglas obligatorias:
   }
 
   throw lastError || new Error('Gemini no ha respondido.');
+};
+
+const transcribeWithGeminiFile = async ({ filePath, mimeType }) => {
+  const uploadResult = await ai.files.upload({
+    file: filePath,
+    config: { mimeType }
+  });
+
+  let fileState = await ai.files.get({ name: uploadResult.name });
+  while (fileState.state === 'PROCESSING') {
+    await sleep(3000);
+    fileState = await ai.files.get({ name: uploadResult.name });
+  }
+  if (fileState.state !== 'ACTIVE') throw new Error(`El archivo falló con estado: ${fileState.state}`);
+  return generateTranscription(createPartFromUri(uploadResult.uri, uploadResult.mimeType));
+};
+
+const isYouTubeUrl = (value) => {
+  const hostname = new URL(value).hostname.toLowerCase();
+  return hostname === 'youtube.com' || hostname.endsWith('.youtube.com') || hostname === 'youtu.be';
 };
 
 const removePathSafe = async (targetPath) => {
@@ -633,6 +637,23 @@ app.post('/api/transcribe-url', async (req, res) => {
     const sourceUrl = cleanText(req.body?.url || '');
     if (!sourceUrl || !/^https?:\/\//i.test(sourceUrl)) {
       return res.status(400).json({ success: false, error: 'Pega una URL válida de TikTok, YouTube u otra plataforma compatible.' });
+    }
+    try { new URL(sourceUrl); } catch (_) {
+      return res.status(400).json({ success: false, error: 'La URL no es válida.' });
+    }
+
+    if (isYouTubeUrl(sourceUrl)) {
+      const result = await generateTranscription({ fileData: { fileUri: sourceUrl } });
+      return res.json({
+        success: true,
+        model: result.model,
+        fileName: 'YouTube',
+        sourceUrl,
+        platform: 'YouTube',
+        visualVerification: true,
+        suggestedTitle: fallbackTitleFromTranscript(result.transcription),
+        transcription: result.transcription
+      });
     }
 
     const downloaded = await downloadMediaFromUrl(sourceUrl);

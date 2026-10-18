@@ -20,6 +20,6 @@ No se guardan credenciales en el repositorio. Sin clave de Gemini se puede verif
 
 ## Despliegue y limpieza
 
-GitHub Pages sirve la interfaz; Render sirve el backend. La URL pública es [AETERNA PRO](https://gusl1ght.github.io/AETERNA-PRO/). El backend actualiza `yt-dlp` al arrancar. YouTube requiere Node.js 22 y los componentes JavaScript de `yt-dlp`. Se descarga vídeo cuando está disponible para verificar visualmente nombres de programas; si solo puede obtener audio, la interfaz lo indica. Si falla un enlace, el archivo manual permanece disponible.
+GitHub Pages sirve la interfaz; Render sirve el backend. La URL pública es [AETERNA PRO](https://gusl1ght.github.io/AETERNA-PRO/). Los vídeos públicos de YouTube se envían directamente a Gemini; otras plataformas usan un extractor `yt-dlp` verificado. Se procesa vídeo cuando está disponible para comprobar los nombres visibles; si solo puede obtener audio, la interfaz lo indica. Si falla un enlace, el archivo manual permanece disponible.
 
 Antes de limpiar ramas o archivos en GitHub, comprobar qué rama alimenta Pages y qué comando de inicio usa Render. No eliminar `backend/server.js` ni `backend/server-v11.js` hasta consolidar ambos despliegues. Las ramas beta y las transcripciones históricas siguen siendo datos útiles.
