@@ -28,6 +28,6 @@ El botón **Leer texto de las imágenes** usa un modo independiente para vídeos
 
 Tras obtener un resultado, **Compartir** usa el menú de compartir del dispositivo cuando existe; en otros navegadores copia el texto para pegarlo en otra aplicación. En local, la web y la API deben arrancarse juntas con `tools/run-dev.ps1`; abrir solo `127.0.0.1:8080` produce un error de conexión.
 
-La interfaz ocupa la altura disponible de la ventana. Las transcripciones largas se desplazan dentro del panel de texto, mientras que los campos y los botones Copiar, TXT y GitHub permanecen visibles. En pantallas pequeñas se muestra primero el resultado y se puede volver al formulario con el botón superior.
+La interfaz ocupa la altura disponible de la ventana. Las transcripciones largas se desplazan dentro del panel de texto, mientras que los botones TXT y Compartir, además de GitHub cuando hay conexión, permanecen visibles. En pantallas pequeñas se muestra primero el resultado y se puede volver al formulario con el botón superior.
 
 Antes de limpiar ramas o archivos en GitHub, comprobar qué rama alimenta Pages y qué comando de inicio usa Render. No eliminar `backend/server.js` ni `backend/server-v11.js` hasta consolidar ambos despliegues. Las ramas beta y las transcripciones históricas siguen siendo datos útiles.
