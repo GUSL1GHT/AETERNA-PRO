@@ -298,9 +298,7 @@
                         <main className="flex-1 min-h-0 overflow-hidden grid grid-cols-1 lg:grid-cols-[390px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] gap-0">
                             <section className={`${hasOutput ? 'hidden lg:flex' : 'flex'} min-h-0 overflow-y-auto lg:border-r border-slate-800 p-2 md:p-4 flex-col gap-3`}>
                                 <div className="bg-slate-950/70 p-3 rounded-2xl border border-cyan-900/60 text-center shrink-0">
-                                    <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest mb-1">Paso 1: Pega el enlace</p>
-                                    <p className="text-xs text-slate-400 mb-3">Enlace de un vídeo o publicación de TikTok, YouTube u otra plataforma compatible.</p>
-                                    <input type="url" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} disabled={loading} placeholder="https://..." className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 text-sm text-slate-100 placeholder-slate-500 text-left mb-3 disabled:opacity-70" />
+                                    <input type="url" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} disabled={loading} aria-label="Enlace del vídeo" placeholder="Enlace del vídeo de YouTube o TikTok" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 text-sm text-slate-100 placeholder-slate-500 text-left mb-3 disabled:opacity-70" />
                                     {urlTranscribing ? (
                                         <div className="rounded-xl border border-cyan-900/60 bg-slate-900/60 p-3 text-left" aria-live="polite">
                                             <div className="flex justify-between gap-3 text-xs text-cyan-300 mb-2">
@@ -324,7 +322,7 @@
                                     {githubConnected ? (
                                         <div className="flex items-center justify-between gap-2"><span className="text-emerald-300 truncate">GitHub conectado: {githubLogin}</span><button onClick={disconnectGithub} className="text-slate-400 hover:text-white shrink-0">Desconectar</button></div>
                                     ) : githubConfigured ? (
-                                        <button onClick={() => { location.href = `${BACKEND_URL}/api/github-auth/start`; }} className="text-cyan-300 font-semibold hover:text-cyan-200">Conectar GitHub para guardar (opcional)</button>
+                                        <button onClick={() => { location.href = `${BACKEND_URL}/api/github-auth/start`; }} className="text-cyan-300 font-semibold hover:text-cyan-200">Conectar GitHub</button>
                                     ) : <span className="text-slate-400">Guardado en GitHub no disponible</span>}
                                     {githubConnected && <div className="mt-3 text-left space-y-2">
                                         <label htmlFor="github-repository" className="block text-slate-300 font-semibold">Guardar en</label>
