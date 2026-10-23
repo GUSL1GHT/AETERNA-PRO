@@ -18,7 +18,7 @@ Tras el despliegue, abrir AETERNA y elegir **Conectar GitHub**. Si no aparece ni
 
 ## Comprobación
 
-1. Sin conectar, solo debe aparecer **Transcribir URL**, además de **Conectar GitHub**. Una transcripción sigue permitiendo **Copiar** y **TXT**.
+1. Sin conectar, deben aparecer **Transcribir URL**, **Leer texto de las imágenes** y **Conectar GitHub**. El resultado ofrece **TXT** y **Compartir**.
 2. Conectar la cuenta y comprobar que aparecen sus repositorios autorizados; seleccionar uno.
-3. Transcribir un enlace público, guardar y comprobar que se creó un Markdown en `transcripts/AAAA/MM/` del repositorio elegido.
+3. Pulsar **Transcribir URL** y comprobar que no se crea un archivo en GitHub. Pulsar **Transcribir y guardar en GitHub** con un enlace público y comprobar que se crea un Markdown en `transcripts/AAAA/MM/` del repositorio elegido.
 4. Desconectar y comprobar que desaparecen las acciones de guardado. Una llamada de guardado sin sesión debe responder `401`.

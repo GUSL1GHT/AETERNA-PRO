@@ -40,7 +40,6 @@
             const [progressEstimateMs, setProgressEstimateMs] = useState(25000);
             const [title, setTitle] = useState("");
             const [platform, setPlatform] = useState("TikTok");
-            const [project, setProject] = useState("");
             const [githubSession, setGithubSession] = useState(() => sessionStorage.getItem('aeterna-github-session') || '');
             const [githubConnected, setGithubConnected] = useState(false);
             const [githubLogin, setGithubLogin] = useState('');
@@ -180,7 +179,7 @@
                         title: meta.title ?? title,
                         repository: githubRepository,
                         platform: meta.platform ?? platform,
-                        project,
+                        project: '',
                         transcription,
                         model: meta.model || resultMeta?.model || "",
                         fileName: meta.fileName || resultMeta?.fileName || mediaFile?.name || "",
@@ -334,20 +333,6 @@
                 URL.revokeObjectURL(url);
             };
 
-            const saveToGitHub = async () => {
-                if (!result) return;
-                setSaving(true);
-                setErrorMsg(null);
-                setSaveMsg(null);
-                try {
-                    await saveTranscriptToGitHub(result);
-                } catch (error) {
-                    setErrorMsg(error.message || "Error guardando en GitHub.");
-                } finally {
-                    setSaving(false);
-                }
-            };
-
             const hasOutput = !!result || !!errorMsg || !!saveMsg;
             const isVideo = mediaFile?.type?.startsWith("video/");
             const isAudio = mediaFile?.type?.startsWith("audio/");
@@ -462,19 +447,9 @@
                                             {result}
                                         </div>
 
-                                        {githubConnected && githubRepository && <div className="shrink-0 bg-slate-950 p-3 rounded-2xl border border-slate-700 space-y-2 text-center">
-                                            <div>
-                                                <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest">Guardar como fuente</p>
-                                                <p className="text-xs text-slate-400 mt-1">Ajusta título, elige proyecto y guarda si quieres.</p>
-                                            </div>
-                                            <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Título sugerido automático" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-500 text-left" />
-                                            <input type="text" value={project} onChange={(e) => setProject(e.target.value)} placeholder="Proyecto relacionado (opcional)" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-500 text-left" />
-                                        </div>}
-
-                                        <div className={`shrink-0 grid ${githubConnected && githubRepository ? 'grid-cols-3' : 'grid-cols-2'} gap-2 md:gap-3`}>
+                                        <div className="shrink-0 grid grid-cols-2 gap-2 md:gap-3">
                                             <button onClick={downloadTextFile} className="bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-xs font-bold border border-slate-700 transition-all">TXT</button>
                                             <button onClick={shareTranscript} className="bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-xs font-bold border border-slate-700 transition-all">Compartir</button>
-                                            {githubConnected && githubRepository && <button onClick={saveToGitHub} disabled={saving} className="bg-emerald-700 hover:bg-emerald-600 py-3 rounded-xl text-xs font-bold border border-emerald-600 transition-all disabled:opacity-50">{saving ? "Guardando..." : "GitHub"}</button>}
                                         </div>
                                     </>
                                 )}
