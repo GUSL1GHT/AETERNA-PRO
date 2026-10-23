@@ -18,6 +18,8 @@ Aplicación web y PWA para transcribir enlaces de vídeos o publicaciones y, opc
 
 No se guardan credenciales en el repositorio. Cada usuario externo necesita su propia clave de Gemini para transcribir. La clave introducida se envía al backend por HTTPS y queda únicamente en memoria del proceso; el navegador recuerda solo un identificador de sesión. Tras reiniciar o dormir Render habrá que conectarla de nuevo. La `GEMINI_API_KEY` ya configurada en Render solo se usa para la cuenta GUSL1GHT tras verificar su sesión de GitHub; otras cuentas nunca acceden a esa cuota. Cada persona instala la GitHub App únicamente en los repositorios que elija.
 
+Al conectar una clave de Gemini, el backend consulta los modelos disponibles para esa clave. Prefiere los modelos Flash actuales en cuentas nuevas y conserva la preferencia por los modelos 2.5 en la cuenta propietaria, con alternativas si un modelo deja de estar disponible.
+
 ## Instalar como aplicación
 
 La web pública es una PWA con icono propio. En Chrome para Android, abrir la URL de AETERNA y elegir **Instalar aplicación** en el menú del navegador, o pulsar **Instalar app** cuando aparezca en el pie de la interfaz. En Chrome de escritorio, usar **Instalar** en la barra de direcciones o en el menú. La instalación crea un icono y abre AETERNA en una ventana independiente; las transcripciones siguen necesitando Internet y el backend. No hace falta una APK para este uso. Una APK requeriría un empaquetado Android y firma adicionales.
