@@ -583,7 +583,17 @@ Reglas obligatorias:
 - Si no hay ningún texto informativo legible, devuelve exactamente [SIN_TEXTO_VISUAL].
 - Devuelve únicamente el texto extraído y sus marcas de tiempo.`;
 
-const generateTranscription = async (mediaPart, mode = 'audio') => {
+const visualPhotoPrompt = `Lee exclusivamente el texto visible en estas imágenes de una publicación de TikTok, en el orden recibido.
+
+Reglas obligatorias:
+- Separa cada imagen como «Imagen N», con el número indicado al final de este mensaje.
+- Conserva literalmente el idioma, los nombres propios, los números y el orden de lectura. No traduzcas, resumas, corrijas ni completes con conocimientos externos.
+- No leas la voz, la música ni elementos de la interfaz de TikTok. No describas imágenes sin texto.
+- Si una parte no se distingue, escribe [ilegible]; no inventes palabras.
+- Si ninguna imagen contiene texto informativo legible, devuelve exactamente [SIN_TEXTO_VISUAL].
+- Devuelve únicamente el texto extraído, sin introducción.`;
+
+const generateTranscription = async (mediaPart, mode = 'audio', promptOverride = null) => {
   const models = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
   let lastError = null;
 
@@ -592,8 +602,8 @@ const generateTranscription = async (mediaPart, mode = 'audio') => {
       const response = await ai.models.generateContent({
         model,
         contents: createUserContent([
-          mediaPart,
-          mode === 'visual' ? visualTextPrompt : transcriptionPrompt
+          ...(Array.isArray(mediaPart) ? mediaPart : [mediaPart]),
+          promptOverride || (mode === 'visual' ? visualTextPrompt : transcriptionPrompt)
         ]),
         config: { temperature: 0 }
       });
@@ -626,6 +636,80 @@ const transcribeWithGeminiFile = async ({ filePath, mimeType, mode = 'audio' }) 
   }
   if (fileState.state !== 'ACTIVE') throw new Error(`El archivo falló con estado: ${fileState.state}`);
   return generateTranscription(createPartFromUri(uploadResult.uri, uploadResult.mimeType), mode);
+};
+
+const tikTokPhotoMatch = (value) => {
+  const url = new URL(value);
+  if (!(url.hostname === 'tiktok.com' || url.hostname.endsWith('.tiktok.com'))) return null;
+  return /^\/@[\w.-]+\/photo\/(\d+)(?:\/)?$/.exec(url.pathname);
+};
+
+const fetchTikTokPhotoImages = async (sourceUrl) => {
+  const match = tikTokPhotoMatch(sourceUrl);
+  if (!match) throw new Error('Enlace de fotos de TikTok no válido.');
+  const detailUrl = new URL(sourceUrl);
+  detailUrl.pathname = detailUrl.pathname.replace('/photo/', '/video/');
+  detailUrl.search = '';
+  const response = await fetch(detailUrl, {
+    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36' },
+    signal: AbortSignal.timeout(20000)
+  });
+  if (!response.ok) throw new Error('TikTok no ha permitido acceder a las imágenes de esta publicación.');
+  const html = await response.text();
+  const embedded = /<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__" type="application\/json">([\s\S]*?)<\/script>/.exec(html);
+  if (!embedded) throw new Error('TikTok no ha entregado los datos de esta publicación de fotos.');
+  const post = JSON.parse(embedded[1])?.__DEFAULT_SCOPE__?.['webapp.video-detail']?.itemInfo?.itemStruct;
+  const images = post?.imagePost?.images;
+  if (String(post?.id) !== match[1] || !Array.isArray(images) || !images.length || images.length > 35) {
+    throw new Error('No se ha podido obtener una lista válida de imágenes de esta publicación.');
+  }
+  return images.map((image) => {
+    const candidate = image?.imageURL?.urlList?.[0];
+    const imageUrl = new URL(candidate);
+    if (imageUrl.protocol !== 'https:' || !/(^|\.)tiktokcdn(?:-[a-z0-9]+)?\.com$/.test(imageUrl.hostname)) {
+      throw new Error('TikTok ha enviado una dirección de imagen no válida.');
+    }
+    return imageUrl.href;
+  });
+};
+
+const readTikTokImagePart = async (url) => {
+  const response = await fetch(url, { signal: AbortSignal.timeout(20000) });
+  const mimeType = response.headers.get('content-type')?.split(';')[0]?.trim();
+  if (!response.ok || !['image/jpeg', 'image/png', 'image/webp'].includes(mimeType)) {
+    throw new Error('No se ha podido descargar una de las imágenes de TikTok.');
+  }
+  const size = Number(response.headers.get('content-length') || 0);
+  if (size > 5_000_000) throw new Error('Una imagen de TikTok supera el límite de 5 MB.');
+  const buffer = Buffer.from(await response.arrayBuffer());
+  if (buffer.length > 5_000_000) throw new Error('Una imagen de TikTok supera el límite de 5 MB.');
+  return { inlineData: { mimeType, data: buffer.toString('base64') } };
+};
+
+const readTikTokPhotoText = async (sourceUrl) => {
+  const imageUrls = await fetchTikTokPhotoImages(sourceUrl);
+  const sections = [];
+  let model = '';
+  let parts = [];
+  let firstImage = 1;
+  let encodedBytes = 0;
+  const processBatch = async () => {
+    if (!parts.length) return;
+    const result = await generateTranscription(parts, 'visual', `${visualPhotoPrompt}\nEstas son las imágenes ${firstImage} a ${firstImage + parts.length - 1}.`);
+    model = result.model;
+    if (result.transcription && !result.transcription.includes('[SIN_TEXTO_VISUAL]')) sections.push(result.transcription);
+    firstImage += parts.length;
+    parts = [];
+    encodedBytes = 0;
+  };
+  for (const imageUrl of imageUrls) {
+    const part = await readTikTokImagePart(imageUrl);
+    if (parts.length >= 6 || (parts.length && encodedBytes + part.inlineData.data.length > 15_000_000)) await processBatch();
+    parts.push(part);
+    encodedBytes += part.inlineData.data.length;
+  }
+  await processBatch();
+  return { model, transcription: sections.join('\n\n') };
 };
 
 const isYouTubeUrl = (value) => {
@@ -792,6 +876,27 @@ app.post('/api/transcribe-url', async (req, res) => {
     }
     try { new URL(sourceUrl); } catch (_) {
       return res.status(400).json({ success: false, error: 'La URL no es válida.' });
+    }
+
+    if (tikTokPhotoMatch(sourceUrl)) {
+      if (mode !== 'visual') {
+        return res.status(400).json({ success: false, error: 'Este enlace es una publicación de fotos. Pulsa «Leer texto de las imágenes».' });
+      }
+      const result = await readTikTokPhotoText(sourceUrl);
+      if (!result.transcription) {
+        return res.status(422).json({ success: false, error: 'No se ha encontrado texto visual legible en estas imágenes.' });
+      }
+      return res.json({
+        success: true,
+        model: result.model,
+        fileName: 'Fotos de TikTok',
+        sourceUrl,
+        platform: 'TikTok',
+        mode,
+        visualVerification: true,
+        suggestedTitle: fallbackTitleFromTranscript(result.transcription),
+        transcription: result.transcription
+      });
     }
 
     if (isYouTubeUrl(sourceUrl)) {

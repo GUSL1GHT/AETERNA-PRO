@@ -251,7 +251,12 @@
                         });
                     }
                 } catch (error) {
-                    setErrorMsg(error.message || "Error transcribiendo desde URL.");
+                    const networkError = error instanceof TypeError || /NetworkError|Failed to fetch/i.test(error.message || '');
+                    setErrorMsg(networkError
+                        ? (['localhost', '127.0.0.1'].includes(location.hostname)
+                            ? 'No se puede conectar con la API local. Abre la aplicación con tools/run-dev.ps1 y comprueba que muestre «API OK / UI OK».'
+                            : 'No se puede conectar con el servidor. Espera un momento y vuelve a intentarlo.')
+                        : error.message || "Error transcribiendo desde URL.");
                 } finally {
                     setUrlTranscribing(false);
                     setLoading(false);
@@ -304,6 +309,24 @@
                 if (result) {
                     navigator.clipboard.writeText(result);
                     alert("Copiado al portapapeles");
+                }
+            };
+
+            const shareTranscript = async () => {
+                if (!result) return;
+                if (navigator.share) {
+                    try {
+                        await navigator.share({ title: title || 'Transcripción AETERNA', text: result });
+                        return;
+                    } catch (error) {
+                        if (error?.name === 'AbortError') return;
+                    }
+                }
+                try {
+                    await navigator.clipboard.writeText(result);
+                    alert('Transcripción copiada. Ya puedes pegarla donde quieras compartirla.');
+                } catch (_) {
+                    setErrorMsg('No se pudo compartir ni copiar. Usa el botón TXT para descargar la transcripción.');
                 }
             };
 
@@ -455,9 +478,10 @@
                                             <input type="text" value={project} onChange={(e) => setProject(e.target.value)} placeholder="Proyecto relacionado (opcional)" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-500 text-left" />
                                         </div>}
 
-                                        <div className={`shrink-0 grid ${githubConnected && githubRepository ? 'grid-cols-3' : 'grid-cols-2'} gap-2 md:gap-3`}>
+                                        <div className={`shrink-0 grid ${githubConnected && githubRepository ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-3'} gap-2 md:gap-3`}>
                                             <button onClick={copyToClipboard} className="bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-xs font-bold border border-slate-700 transition-all">Copiar</button>
                                             <button onClick={downloadTextFile} className="bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-xs font-bold border border-slate-700 transition-all">TXT</button>
+                                            <button onClick={shareTranscript} className="bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-xs font-bold border border-slate-700 transition-all">Compartir</button>
                                             {githubConnected && githubRepository && <button onClick={saveToGitHub} disabled={saving} className="bg-emerald-700 hover:bg-emerald-600 py-3 rounded-xl text-xs font-bold border border-emerald-600 transition-all disabled:opacity-50">{saving ? "Guardando..." : "GitHub"}</button>}
                                         </div>
                                     </>
