@@ -12,7 +12,7 @@ Quien introduzca una clave debe confiar en el operador del backend. La variable 
 
 ## Riesgo principal
 
-La URL de la web y de la API son públicas. Sin un control de acceso adicional, cualquier visitante con una clave propia de Gemini puede ocupar recursos del backend de Render. La GitHub App sigue privada y no permite que terceros conecten sus repositorios.
+La URL de la web y de la API son públicas. Sin un control de acceso adicional, cualquier visitante con una clave propia de Gemini puede ocupar recursos del backend de Render. La GitHub App es pública, pero cada instalación solo obtiene los repositorios seleccionados por su propietario; el backend solo ofrece repositorios personales de la cuenta autenticada y vuelve a comprobar la selección al guardar.
 
 ## Arquitectura actual
 

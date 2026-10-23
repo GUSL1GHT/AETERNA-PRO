@@ -7,7 +7,7 @@ Aplicación web y PWA para transcribir enlaces de vídeos o publicaciones y, opc
 - La interfaz Beta v1.2 y la transcripción por URL se despliegan desde `beta-v1.1-url-whisper` (nombre histórico de la rama configurada en Pages y Render).
 - `main` contiene una versión anterior que solo admite archivos.
 - El backend de Beta v1.2 arranca con `backend/server-v11.js` según `backend/package.json`.
-- El usuario elige un repositorio autorizado para guardar las transcripciones. En la instalación actual, la GitHub App es privada y solo funciona con la cuenta GUSL1GHT; [AETERNA-TRANSCRIPTS](https://github.com/GUSL1GHT/AETERNA-TRANSCRIPTS) es la biblioteca elegida. `sources/aeterna/inbox/` conserva fuentes históricas.
+- Cada persona elige un repositorio personal autorizado para guardar sus transcripciones. La GitHub App es pública e instalable en otras cuentas, pero la instalación de GUSL1GHT sigue limitada a [AETERNA-TRANSCRIPTS](https://github.com/GUSL1GHT/AETERNA-TRANSCRIPTS). `sources/aeterna/inbox/` conserva fuentes históricas.
 
 ## Probar en Windows
 
@@ -16,7 +16,7 @@ Aplicación web y PWA para transcribir enlaces de vídeos o publicaciones y, opc
 3. Ejecutar `tools/run-dev.ps1`. Abre la web en `http://127.0.0.1:8080/` y la API en `http://127.0.0.1:3000/`.
 4. Consultar `tools/check-dev.ps1` y detener con `tools/stop-dev.ps1`.
 
-No se guardan credenciales en el repositorio. Cada usuario externo necesita su propia clave de Gemini para transcribir. La clave introducida se envía al backend por HTTPS y queda únicamente en memoria del proceso; el navegador recuerda solo un identificador de sesión. Tras reiniciar o dormir Render habrá que conectarla de nuevo. La `GEMINI_API_KEY` ya configurada en Render solo se usa para la cuenta GUSL1GHT tras verificar su sesión de GitHub; otras cuentas nunca acceden a esa cuota. Para que otros usuarios guarden en sus repositorios, la GitHub App debe permitir instalaciones en otras cuentas.
+No se guardan credenciales en el repositorio. Cada usuario externo necesita su propia clave de Gemini para transcribir. La clave introducida se envía al backend por HTTPS y queda únicamente en memoria del proceso; el navegador recuerda solo un identificador de sesión. Tras reiniciar o dormir Render habrá que conectarla de nuevo. La `GEMINI_API_KEY` ya configurada en Render solo se usa para la cuenta GUSL1GHT tras verificar su sesión de GitHub; otras cuentas nunca acceden a esa cuota. Cada persona instala la GitHub App únicamente en los repositorios que elija.
 
 ## Instalar como aplicación
 
