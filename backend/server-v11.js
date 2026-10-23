@@ -30,11 +30,25 @@ const geminiSessionFromRequest = (req) => {
   session.lastUsed = Date.now();
   return session;
 };
-const requireGeminiSession = (req, res, next) => {
+const requireGeminiSession = async (req, res, next) => {
   const session = geminiSessionFromRequest(req);
-  if (!session) return res.status(401).json({ success: false, error: 'Conecta Gemini para transcribir.' });
-  req.geminiAi = new GoogleGenAI({ apiKey: session.apiKey });
-  next();
+  if (session) {
+    req.geminiAi = new GoogleGenAI({ apiKey: session.apiKey });
+    return next();
+  }
+  try {
+    const githubSessionId = req.get('X-Aeterna-Github-Session') || '';
+    if (/^[a-f0-9]{64}$/.test(githubSessionId) && process.env.GEMINI_API_KEY) {
+      const githubSession = githubSessions.get(githubSessionId);
+      if (githubSession?.login?.toLowerCase() === 'gusl1ght' && await sessionFromId(githubSessionId)) {
+        req.geminiAi = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+        return next();
+      }
+    }
+    res.status(401).json({ success: false, error: 'Conecta Gemini para transcribir.' });
+  } catch (_) {
+    res.status(401).json({ success: false, error: 'Conecta Gemini para transcribir.' });
+  }
 };
 
 app.post('/api/gemini-auth/connect', async (req, res) => {
@@ -170,8 +184,7 @@ const githubTokenRequest = async (params) => {
   return data;
 };
 
-const sessionFromRequest = async (req) => {
-  const sessionId = /^Bearer ([a-f0-9]{64})$/.exec(req.get('Authorization') || '')?.[1];
+const sessionFromId = async (sessionId) => {
   const session = sessionId && githubSessions.get(sessionId);
   if (!session) return null;
   if (session.expiresAt && Date.now() > session.expiresAt - 60000) {
@@ -196,6 +209,7 @@ const sessionFromRequest = async (req) => {
   }
   return session;
 };
+const sessionFromRequest = (req) => sessionFromId(/^Bearer ([a-f0-9]{64})$/.exec(req.get('Authorization') || '')?.[1]);
 
 const githubGet = async (path, token) => {
   const response = await fetch(`https://api.github.com${path}`, { headers: githubHeaders(token) });
@@ -215,7 +229,10 @@ const githubRepositories = async (session) => {
     if (installation.permissions?.contents !== 'write') continue;
     for (let page = 1; page <= 10; page++) {
       const data = await githubGet(`/user/installations/${installation.id}/repositories?per_page=100&page=${page}`, session.accessToken);
-      repositories.push(...(data.repositories || []).filter(repo => repo.permissions?.push || repo.permissions?.admin).map(repo => ({
+      repositories.push(...(data.repositories || []).filter(repo =>
+        repo.owner?.login?.toLowerCase() === session.login.toLowerCase() &&
+        (repo.permissions?.push || repo.permissions?.admin)
+      ).map(repo => ({
         fullName: repo.full_name,
         defaultBranch: repo.default_branch || 'main',
         private: !!repo.private

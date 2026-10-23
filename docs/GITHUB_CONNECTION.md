@@ -1,6 +1,6 @@
 # Conexión de GitHub para AETERNA
 
-La interfaz permite elegir un repositorio autorizado. Por ahora la GitHub App es privada y solo la cuenta GUSL1GHT puede instalarla. La biblioteca actual es [GUSL1GHT/AETERNA-TRANSCRIPTS](https://github.com/GUSL1GHT/AETERNA-TRANSCRIPTS).
+La interfaz permite elegir un repositorio autorizado. El backend solo ofrece y acepta repositorios personales propiedad de la cuenta de GitHub que inició sesión; no permite elegir repositorios de otro usuario ni de una organización. Por ahora la GitHub App es privada y solo la cuenta GUSL1GHT puede instalarla. La biblioteca actual es [GUSL1GHT/AETERNA-TRANSCRIPTS](https://github.com/GUSL1GHT/AETERNA-TRANSCRIPTS).
 
 ## GitHub App
 

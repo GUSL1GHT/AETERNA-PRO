@@ -53,6 +53,8 @@
             const [githubSession, setGithubSession] = useState(() => localStorage.getItem('aeterna-github-session') || '');
             const [githubConnected, setGithubConnected] = useState(false);
             const [githubLogin, setGithubLogin] = useState('');
+            const ownerGeminiReady = githubConnected && githubLogin.toLowerCase() === 'gusl1ght';
+            const canTranscribe = geminiConnected || ownerGeminiReady;
             const [githubConfigured, setGithubConfigured] = useState(false);
             const [githubRepositories, setGithubRepositories] = useState([]);
             const [githubRepository, setGithubRepository] = useState(() => localStorage.getItem('aeterna-github-repository') || '');
@@ -250,7 +252,7 @@
             const saveTranscriptToGitHub = async (transcription, meta = {}) => {
                 const response = await fetch(`${BACKEND_URL}/api/save-transcript-to-github`, {
                     method: "POST",
-                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${githubSession}`, 'X-Aeterna-Gemini-Session': geminiSession },
+                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${githubSession}`, 'X-Aeterna-Gemini-Session': geminiSession, 'X-Aeterna-Github-Session': githubSession },
                     body: JSON.stringify({
                         title: meta.title ?? title,
                         repository: githubRepository,
@@ -296,7 +298,7 @@
                 try {
                     const response = await fetch(`${BACKEND_URL}/api/transcribe-url`, {
                         method: "POST",
-                        headers: { "Content-Type": "application/json", 'X-Aeterna-Gemini-Session': geminiSession },
+                        headers: { "Content-Type": "application/json", 'X-Aeterna-Gemini-Session': geminiSession, 'X-Aeterna-Github-Session': githubSession },
                         body: JSON.stringify({ url, mode })
                     });
                     const data = await response.json();
@@ -379,9 +381,9 @@
                                 <div className="bg-slate-950/70 p-3 rounded-2xl border border-cyan-900/60 text-center shrink-0">
                                     <input type="url" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} disabled={loading} aria-label="Enlace del vídeo" placeholder="Enlace del vídeo de YouTube o TikTok" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 text-sm text-slate-100 placeholder-slate-500 text-left mb-3 disabled:opacity-70" />
                                     <div className="mb-3 text-sm">
-                                        {geminiConnected ? (
+                                        {geminiConnected || ownerGeminiReady ? (
                                             <div className="flex items-center justify-between gap-2 rounded-xl border border-emerald-800 bg-emerald-950/40 px-3 py-2 text-emerald-200">
-                                                <span>✦ Gemini conectado</span><button onClick={disconnectGemini} className="text-xs underline">Desconectar</button>
+                                                <span>✦ Gemini conectado</span>{geminiConnected && <button onClick={disconnectGemini} className="text-xs underline">Desconectar</button>}
                                             </div>
                                         ) : geminiOpen ? (
                                             <form onSubmit={connectGemini} className="rounded-xl border border-violet-700 bg-slate-900 p-3 text-left space-y-2">
@@ -406,9 +408,9 @@
                                         </div>
                                     ) : (
                                         <div className="grid grid-cols-1 gap-2">
-                                            <button onClick={() => handleUrlTranscribe(false)} disabled={loading || !sourceUrl.trim() || !geminiConnected} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">Transcribir URL</button>
-                                            <button onClick={() => handleUrlTranscribe(false, 'visual')} disabled={loading || !sourceUrl.trim() || !geminiConnected} className="bg-violet-700 hover:bg-violet-600 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">Extraer texto visible del vídeo</button>
-                                            {githubConnected && githubRepository && <button onClick={() => handleUrlTranscribe(true)} disabled={loading || saving || !sourceUrl.trim() || !geminiConnected} className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">Transcribir y guardar en GitHub</button>}
+                                            <button onClick={() => handleUrlTranscribe(false)} disabled={loading || !sourceUrl.trim() || !canTranscribe} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">Transcribir URL</button>
+                                            <button onClick={() => handleUrlTranscribe(false, 'visual')} disabled={loading || !sourceUrl.trim() || !canTranscribe} className="bg-violet-700 hover:bg-violet-600 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">Extraer texto visible del vídeo</button>
+                                            {githubConnected && githubRepository && <button onClick={() => handleUrlTranscribe(true)} disabled={loading || saving || !sourceUrl.trim() || !canTranscribe} className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">Transcribir y guardar en GitHub</button>}
                                         </div>
                                     )}
                                 </div>

@@ -8,7 +8,7 @@ No guardar claves privadas dentro del repositorio.
 
 La web de GitHub Pages permite introducir una clave propia de Gemini. La envía al backend por HTTPS para validarla y usarla; el backend la conserva únicamente en memoria. El navegador guarda en localStorage solo un identificador de sesión aleatorio, nunca la clave. Al reiniciarse o dormirse Render, hay que conectarla otra vez.
 
-Quien introduzca una clave debe confiar en el operador del backend. El servidor no utiliza la antigua variable `GEMINI_API_KEY` para peticiones públicas.
+Quien introduzca una clave debe confiar en el operador del backend. La variable `GEMINI_API_KEY` de Render solo se utiliza tras verificar la sesión de GitHub de GUSL1GHT; las demás cuentas usan su propia clave.
 
 ## Riesgo principal
 
