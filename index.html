@@ -320,11 +320,11 @@
                                         </div>
                                     )}
                                 </div>
-                                <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-xs shrink-0">
+                                <div className={githubConnected ? "rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-xs shrink-0" : "flex justify-center text-xs shrink-0"}>
                                     {githubConnected ? (
                                         <div className="flex items-center justify-between gap-2"><span className="flex items-center gap-2 text-emerald-300 truncate"><GithubIcon /> GitHub conectado: {githubLogin}</span><button onClick={disconnectGithub} className="text-slate-400 hover:text-white shrink-0">Desconectar</button></div>
                                     ) : githubConfigured ? (
-                                        <button onClick={() => { location.href = `${BACKEND_URL}/api/github-auth/start`; }} className="w-full flex items-center justify-center gap-2 rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-700 transition-colors"><GithubIcon /> Conectar GitHub</button>
+                                        <button onClick={() => { location.href = `${BACKEND_URL}/api/github-auth/start`; }} className="inline-flex max-w-full items-center justify-center gap-2 rounded-xl border border-slate-600 bg-slate-800 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-700 transition-colors"><GithubIcon /> Conectar GitHub</button>
                                     ) : <span className="text-slate-400">Guardado en GitHub no disponible</span>}
                                     {githubConnected && <div className="mt-3 text-left space-y-2">
                                         <label htmlFor="github-repository" className="block text-slate-300 font-semibold">Guardar en</label>
