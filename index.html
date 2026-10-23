@@ -29,23 +29,20 @@
             const [resultMeta, setResultMeta] = useState(null);
             const [activeMode, setActiveMode] = useState('audio');
             const [visualVerification, setVisualVerification] = useState(false);
-            const [mediaFile, setMediaFile] = useState(null);
-            const [previewUrl, setPreviewUrl] = useState(null);
             const [sourceUrl, setSourceUrl] = useState("");
             const [errorMsg, setErrorMsg] = useState(null);
             const [saveMsg, setSaveMsg] = useState(null);
-            const [uploadProgress, setUploadProgress] = useState(0);
             const [urlProgress, setUrlProgress] = useState(0);
             const [urlTranscribing, setUrlTranscribing] = useState(false);
             const [progressEstimateMs, setProgressEstimateMs] = useState(25000);
             const [title, setTitle] = useState("");
             const [platform, setPlatform] = useState("TikTok");
-            const [githubSession, setGithubSession] = useState(() => sessionStorage.getItem('aeterna-github-session') || '');
+            const [githubSession, setGithubSession] = useState(() => localStorage.getItem('aeterna-github-session') || '');
             const [githubConnected, setGithubConnected] = useState(false);
             const [githubLogin, setGithubLogin] = useState('');
             const [githubConfigured, setGithubConfigured] = useState(false);
             const [githubRepositories, setGithubRepositories] = useState([]);
-            const [githubRepository, setGithubRepository] = useState('');
+            const [githubRepository, setGithubRepository] = useState(() => localStorage.getItem('aeterna-github-repository') || '');
             const [githubInstallUrl, setGithubInstallUrl] = useState('');
             const [repositoryLoading, setRepositoryLoading] = useState(false);
 
@@ -58,7 +55,12 @@
                     const list = data.repositories || [];
                     setGithubRepositories(list);
                     setGithubInstallUrl(data.installUrl || '');
-                    setGithubRepository(current => list.some(repo => repo.fullName === current) ? current : (list.length === 1 ? list[0].fullName : ''));
+                    setGithubRepository(current => {
+                        const selected = list.some(repo => repo.fullName === current) ? current : (list.length === 1 ? list[0].fullName : '');
+                        if (selected) localStorage.setItem('aeterna-github-repository', selected);
+                        else localStorage.removeItem('aeterna-github-repository');
+                        return selected;
+                    });
                 } catch (error) {
                     setErrorMsg(error.message);
                 } finally {
@@ -68,11 +70,12 @@
 
             useEffect(() => {
                 const loadGithub = async () => {
-                    let session = sessionStorage.getItem('aeterna-github-session') || '';
+                    let session = localStorage.getItem('aeterna-github-session') || sessionStorage.getItem('aeterna-github-session') || '';
                     const hash = new URLSearchParams(location.hash.slice(1));
                     if (hash.has('github_session')) {
                         session = hash.get('github_session') || '';
-                        sessionStorage.setItem('aeterna-github-session', session);
+                        localStorage.setItem('aeterna-github-session', session);
+                        sessionStorage.removeItem('aeterna-github-session');
                         setGithubSession(session);
                         history.replaceState(null, '', location.pathname + location.search);
                     }
@@ -85,10 +88,13 @@
                             const response = await fetch(`${BACKEND_URL}/api/github-auth/status`, { headers: { Authorization: `Bearer ${session}` } });
                             const data = await response.json();
                             if (response.ok && data.connected) {
+                                localStorage.setItem('aeterna-github-session', session);
+                                sessionStorage.removeItem('aeterna-github-session');
                                 setGithubConnected(true);
                                 setGithubLogin(data.login || '');
                                 await loadRepositories(session);
                             } else {
+                                localStorage.removeItem('aeterna-github-session');
                                 sessionStorage.removeItem('aeterna-github-session');
                                 setGithubSession('');
                             }
@@ -102,6 +108,8 @@
                 if (githubSession) {
                     try { await fetch(`${BACKEND_URL}/api/github-auth/logout`, { method: 'POST', headers: { Authorization: `Bearer ${githubSession}` } }); } catch (_) {}
                 }
+                localStorage.removeItem('aeterna-github-session');
+                localStorage.removeItem('aeterna-github-repository');
                 sessionStorage.removeItem('aeterna-github-session');
                 setGithubSession('');
                 setGithubConnected(false);
@@ -143,18 +151,6 @@
                 setResult(null);
                 setResultMeta(null);
                 setVisualVerification(false);
-                setUploadProgress(0);
-            };
-
-            const handleFileChange = (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                resetOutput();
-                setMediaFile(file);
-                setSourceUrl("");
-                setTitle("");
-                if (previewUrl) URL.revokeObjectURL(previewUrl);
-                setPreviewUrl(URL.createObjectURL(file));
             };
 
             const applyTranscriptionResult = (responseData, fallbackFileName = "") => {
@@ -182,7 +178,7 @@
                         project: '',
                         transcription,
                         model: meta.model || resultMeta?.model || "",
-                        fileName: meta.fileName || resultMeta?.fileName || mediaFile?.name || "",
+                        fileName: meta.fileName || resultMeta?.fileName || "",
                         sourceUrl: meta.sourceUrl || resultMeta?.sourceUrl || sourceUrl || ""
                     })
                 });
@@ -217,10 +213,6 @@
                 setProgressEstimateMs(estimate);
                 setUrlTranscribing(true);
                 setMediaFile(null);
-                if (previewUrl) {
-                    URL.revokeObjectURL(previewUrl);
-                    setPreviewUrl(null);
-                }
 
                 try {
                     const response = await fetch(`${BACKEND_URL}/api/transcribe-url`, {
@@ -263,47 +255,6 @@
                 }
             };
 
-            const handleFileTranscribe = (mode = 'audio') => {
-                if (!mediaFile) return;
-                setLoading(true);
-                setActiveMode(mode);
-                resetOutput();
-
-                const formData = new FormData();
-                formData.append("file", mediaFile);
-                formData.append("mode", mode);
-
-                const xhr = new XMLHttpRequest();
-                xhr.open("POST", `${BACKEND_URL}/api/transcribe`, true);
-
-                xhr.upload.onprogress = (event) => {
-                    if (event.lengthComputable) {
-                        setUploadProgress(Math.round((event.loaded / event.total) * 100));
-                    }
-                };
-
-                xhr.onload = function () {
-                    setLoading(false);
-                    try {
-                        const responseData = JSON.parse(xhr.responseText || "{}");
-                        if (xhr.status === 200 && responseData.success) {
-                            applyTranscriptionResult(responseData, mediaFile.name);
-                        } else {
-                            setErrorMsg(responseData.error || `Error del servidor (${xhr.status})`);
-                        }
-                    } catch (_) {
-                        setErrorMsg("Error al procesar la respuesta del servidor.");
-                    }
-                };
-
-                xhr.onerror = function () {
-                    setLoading(false);
-                    setErrorMsg("Error de red o conexión rechazada por el backend. Comprueba que Render esté activo.");
-                };
-
-                xhr.send(formData);
-            };
-
             const shareTranscript = async () => {
                 if (!result) return;
                 if (navigator.share) {
@@ -334,8 +285,6 @@
             };
 
             const hasOutput = !!result || !!errorMsg || !!saveMsg;
-            const isVideo = mediaFile?.type?.startsWith("video/");
-            const isAudio = mediaFile?.type?.startsWith("audio/");
 
             return (
                 <div className="h-dvh w-full overflow-hidden bg-slate-950 font-sans p-2 md:p-3">
@@ -343,7 +292,7 @@
                         <header className="shrink-0 px-3 py-2 md:px-4 md:py-3 border-b border-slate-800 text-center">
                             <h1 className="text-2xl md:text-4xl font-light text-white tracking-[0.24em] uppercase leading-none">AETERNA</h1>
                             <p className="text-[8px] md:text-[9px] text-slate-500 tracking-[0.35em] uppercase mt-1">Digital Synthesis</p>
-                            <p className="hidden sm:block text-xs text-slate-400 mt-2">Convierte enlaces o archivos en fuentes de conocimiento para GitHub.</p>
+                            <p className="hidden sm:block text-xs text-slate-400 mt-2">Convierte enlaces en transcripciones que puedes compartir o guardar.</p>
                         </header>
 
                         <main className="flex-1 min-h-0 overflow-hidden grid grid-cols-1 lg:grid-cols-[390px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] gap-0">
@@ -351,25 +300,6 @@
                                 <div className="bg-slate-950/70 p-3 rounded-2xl border border-cyan-900/60 text-center shrink-0">
                                     <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-widest mb-1">Paso 1: Pega el enlace</p>
                                     <p className="text-xs text-slate-400 mb-3">Enlace de un vídeo o publicación de TikTok, YouTube u otra plataforma compatible.</p>
-                                    <div className="mb-3 rounded-xl border border-slate-700 bg-slate-900/60 p-2 text-xs">
-                                        {githubConnected ? (
-                                            <div className="flex items-center justify-between gap-2"><span className="text-emerald-300 truncate">GitHub conectado: {githubLogin}</span><button onClick={disconnectGithub} className="text-slate-400 hover:text-white shrink-0">Desconectar</button></div>
-                                        ) : githubConfigured ? (
-                                            <button onClick={() => { location.href = `${BACKEND_URL}/api/github-auth/start`; }} className="text-cyan-300 font-semibold hover:text-cyan-200">Conectar GitHub</button>
-                                        ) : <span className="text-slate-400">Conexión de GitHub en configuración</span>}
-                                    </div>
-                                    {githubConnected && <div className="mb-3 text-left text-xs space-y-2">
-                                        <label htmlFor="github-repository" className="block text-slate-300 font-semibold">Guardar en</label>
-                                        <select id="github-repository" value={githubRepository} onChange={(e) => setGithubRepository(e.target.value)} disabled={repositoryLoading} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-slate-100">
-                                            <option value="">{repositoryLoading ? 'Cargando repositorios...' : 'Selecciona un repositorio'}</option>
-                                            {githubRepositories.map(repo => <option key={repo.fullName} value={repo.fullName}>{repo.fullName}{repo.private ? ' · privado' : ''}</option>)}
-                                        </select>
-                                        <div className="flex justify-between gap-2 text-cyan-300">
-                                            {githubInstallUrl && <a href={githubInstallUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">Añadir repositorio</a>}
-                                            <button onClick={() => loadRepositories(githubSession)} disabled={repositoryLoading} className="hover:underline disabled:opacity-50">Actualizar lista</button>
-                                        </div>
-                                        {!githubRepositories.length && !repositoryLoading && <p className="text-slate-400">Autoriza un repositorio con «Añadir repositorio» y actualiza la lista.</p>}
-                                    </div>}
                                     <input type="url" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} disabled={loading} placeholder="https://..." className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 text-sm text-slate-100 placeholder-slate-500 text-left mb-3 disabled:opacity-70" />
                                     {urlTranscribing ? (
                                         <div className="rounded-xl border border-cyan-900/60 bg-slate-900/60 p-3 text-left" aria-live="polite">
@@ -390,32 +320,24 @@
                                         </div>
                                     )}
                                 </div>
-
-                                {!urlTranscribing && <details className="bg-slate-950 p-3 md:p-4 rounded-2xl border border-slate-700 shrink-0 group">
-                                    <summary className="cursor-pointer text-xs text-slate-400 font-bold text-center list-none focus-visible:outline-cyan-400">Si falla el enlace, subir un archivo <span aria-hidden="true" className="ml-1">▾</span></summary>
-                                    <div className="mt-4 flex flex-col gap-3 text-center">
-                                        <p className="text-xs text-slate-500">Opción de respaldo para enlaces que la plataforma no permite descargar.</p>
-                                        <input type="file" accept="video/*,audio/*" onChange={handleFileChange} disabled={loading} className="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-slate-700 file:text-slate-100 hover:file:bg-slate-600" />
-                                        {mediaFile && <p className="text-xs text-emerald-400 font-medium truncate">{mediaFile.name}</p>}
-                                        {mediaFile && <div className="rounded-2xl border border-slate-800 bg-slate-950/45 max-h-56 flex items-center justify-center overflow-hidden">
-                                            {isVideo && previewUrl && <video src={previewUrl} controls className="w-full h-full object-contain bg-black" />}
-                                            {isAudio && previewUrl && <div className="w-full px-4 text-center"><p className="text-xs text-slate-500 uppercase tracking-[0.25em] mb-4">Audio cargado</p><audio src={previewUrl} controls className="w-full" /></div>}
-                                            {!isVideo && !isAudio && <div className="text-center text-slate-500 text-sm px-4">Archivo preparado para transcribir.</div>}
-                                        </div>}
-                                        {loading && mediaFile ? (
-                                            <div className="rounded-xl border border-cyan-900/60 bg-slate-900/60 p-3 text-left" aria-live="polite">
-                                                <div className="flex justify-between gap-3 text-xs text-cyan-300 mb-2"><span>Subiendo archivo</span><span>{uploadProgress}%</span></div>
-                                                <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden" role="progressbar" aria-label="Progreso de subida del archivo" aria-valuemin="0" aria-valuemax="100" aria-valuenow={uploadProgress}><div className="bg-cyan-500 h-2 transition-all duration-500" style={{ width: `${uploadProgress}%` }}></div></div>
-                                                {uploadProgress === 100 && <p className="text-[10px] text-slate-400 mt-2">Archivo enviado. Esperando la transcripción.</p>}
-                                            </div>
-                                        ) : (
-                                            <div className="grid gap-2">
-                                                <button onClick={() => handleFileTranscribe('audio')} disabled={!mediaFile} className="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">Transcribir archivo manual</button>
-                                                {isVideo && <button onClick={() => handleFileTranscribe('visual')} className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-xl transition-all">Leer texto de las imágenes</button>}
-                                            </div>
-                                        )}
-                                    </div>
-                                </details>}
+                                <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-xs shrink-0">
+                                    {githubConnected ? (
+                                        <div className="flex items-center justify-between gap-2"><span className="text-emerald-300 truncate">GitHub conectado: {githubLogin}</span><button onClick={disconnectGithub} className="text-slate-400 hover:text-white shrink-0">Desconectar</button></div>
+                                    ) : githubConfigured ? (
+                                        <button onClick={() => { location.href = `${BACKEND_URL}/api/github-auth/start`; }} className="text-cyan-300 font-semibold hover:text-cyan-200">Conectar GitHub para guardar (opcional)</button>
+                                    ) : <span className="text-slate-400">Guardado en GitHub no disponible</span>}
+                                    {githubConnected && <div className="mt-3 text-left space-y-2">
+                                        <label htmlFor="github-repository" className="block text-slate-300 font-semibold">Guardar en</label>
+                                        <select id="github-repository" value={githubRepository} onChange={(e) => { setGithubRepository(e.target.value); if (e.target.value) localStorage.setItem('aeterna-github-repository', e.target.value); else localStorage.removeItem('aeterna-github-repository'); }} disabled={repositoryLoading} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-slate-100">
+                                            <option value="">{repositoryLoading ? 'Cargando repositorios...' : 'Selecciona un repositorio'}</option>
+                                            {githubRepositories.map(repo => <option key={repo.fullName} value={repo.fullName}>{repo.fullName}{repo.private ? ' · privado' : ''}</option>)}
+                                        </select>
+                                        <div className="flex justify-between gap-2 text-cyan-300">
+                                            {githubInstallUrl && <a href={githubInstallUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">Añadir repositorio</a>}
+                                            <button onClick={() => loadRepositories(githubSession)} disabled={repositoryLoading} className="hover:underline disabled:opacity-50">Actualizar lista</button>
+                                        </div>
+                                    </div>}
+                                </div>
                             </section>
 
                             <section className={`${hasOutput ? 'flex' : 'hidden lg:flex'} min-h-0 overflow-hidden p-2 md:p-4 flex-col gap-2 md:gap-3`}>

@@ -1,6 +1,6 @@
 # AETERNA PRO
 
-Aplicación web y PWA para transcribir enlaces o archivos de audio y vídeo y guardar la transcripción en GitHub.
+Aplicación web y PWA para transcribir enlaces de vídeos o publicaciones y, opcionalmente, guardar la transcripción en GitHub.
 
 ## Estado
 
@@ -20,9 +20,9 @@ No se guardan credenciales en el repositorio. Sin clave de Gemini se puede verif
 
 ## Despliegue y limpieza
 
-GitHub Pages sirve la interfaz; Render sirve el backend. La URL pública es [AETERNA PRO](https://gusl1ght.github.io/AETERNA-PRO/). Los vídeos públicos de YouTube se envían directamente a Gemini; otras plataformas usan un extractor `yt-dlp` verificado. Se procesa vídeo cuando está disponible para comprobar los nombres visibles; si solo puede obtener audio, la interfaz lo indica. Si falla un enlace, el archivo manual permanece disponible. La conexión GitHub usa autorización de usuario con PKCE: el token de GitHub permanece en memoria del backend y el navegador solo conserva un identificador de sesión temporal. El servidor deja de aceptar escrituras anónimas con su antiguo `GITHUB_TOKEN`.
+GitHub Pages sirve la interfaz; Render sirve el backend. La URL pública es [AETERNA PRO](https://gusl1ght.github.io/AETERNA-PRO/). Los vídeos públicos de YouTube se envían directamente a Gemini; otras plataformas usan un extractor `yt-dlp` verificado. Se procesa vídeo cuando está disponible para comprobar los nombres visibles; si solo puede obtener audio, la interfaz lo indica. La interfaz acepta enlaces únicamente; el backend conserva su ruta de archivos sin exponerla en la web. La conexión GitHub usa autorización de usuario con PKCE: el token de GitHub permanece en memoria del backend y el navegador conserva un identificador de sesión temporal. El servidor deja de aceptar escrituras anónimas con su antiguo `GITHUB_TOKEN`.
 
-La URL se vacía después de una transcripción correcta y se conserva si falla, para permitir el reintento. Durante la transcripción por URL, la barra sustituye los botones y muestra un porcentaje **estimado**: se ajusta con las últimas cinco duraciones satisfactorias del mismo tipo de plataforma, guardadas solo en el navegador. El backend no facilita avance real, por lo que la barra se limita al 95 % hasta recibir el resultado. La subida manual queda plegada como respaldo y muestra su porcentaje real; al 100 % todavía puede quedar procesamiento.
+La URL se vacía después de una transcripción correcta y se conserva si falla, para permitir el reintento. Durante la transcripción por URL, la barra sustituye los botones y muestra un porcentaje **estimado**: se ajusta con las últimas cinco duraciones satisfactorias del mismo tipo de plataforma, guardadas solo en el navegador. El backend no facilita avance real, por lo que la barra se limita al 95 % hasta recibir el resultado.
 
 El botón **Leer texto de las imágenes** usa un modo independiente para vídeos con pantallas o diapositivas informativas. Solicita texto visible en orden temporal, con marcas de tiempo aproximadas, sin usar la voz ni traducir el contenido. Las publicaciones de fotos de TikTok (`/photo/`) siguen una ruta específica: se recuperan las imágenes originales en orden y se envían a Gemini en grupos de hasta seis. `yt-dlp` no admite ese tipo de enlace. Si el extractor de un vídeo solo obtiene audio, la aplicación pide subir el vídeo manualmente. El botón original **Transcribir URL** mantiene su comportamiento y avisa cuando recibe una publicación de fotos. El modo visual depende de la calidad de las imágenes o fotogramas; hay que revisar textos rápidos, pequeños o marcados como `[ilegible]`. Para retirarlo, basta con volver a la rama `codex/recover-v11`.
 
