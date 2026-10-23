@@ -18,7 +18,7 @@ Tras el despliegue, pegar primero el enlace. **Conectar GitHub** es opcional y a
 
 ## Comprobación
 
-1. Sin conectar, el campo del enlace aparece primero; después **Transcribir URL**, **Extraer texto de vídeos y fotos** y al final **Conectar GitHub**. El resultado ofrece **TXT** y **Compartir**. No aparece la subida manual.
+1. Sin conectar, el campo del enlace aparece primero; después **Transcribir URL**, **Extraer texto visible del vídeo** y al final **Conectar GitHub**. El resultado ofrece **TXT** y **Compartir**. No aparece la subida manual.
 2. Conectar la cuenta y comprobar que aparecen sus repositorios autorizados; seleccionar uno.
 3. Pulsar **Transcribir URL** y comprobar que no se crea un archivo en GitHub. Pulsar **Transcribir y guardar en GitHub** con un enlace público y comprobar que se crea un Markdown en `transcripts/AAAA/MM/` del repositorio elegido.
 4. Desconectar y comprobar que desaparecen las acciones de guardado. Una llamada de guardado sin sesión debe responder `401`.
