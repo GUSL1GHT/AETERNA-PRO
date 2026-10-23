@@ -315,7 +315,7 @@
                                     ) : (
                                         <div className="grid grid-cols-1 gap-2">
                                             <button onClick={() => handleUrlTranscribe(false)} disabled={loading || !sourceUrl.trim()} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">Transcribir URL</button>
-                                            <button onClick={() => handleUrlTranscribe(false, 'visual')} disabled={loading || !sourceUrl.trim()} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">Leer texto de las imágenes</button>
+                                            <button onClick={() => handleUrlTranscribe(false, 'visual')} disabled={loading || !sourceUrl.trim()} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">Extraer texto de vídeos y fotos</button>
                                             {githubConnected && githubRepository && <button onClick={() => handleUrlTranscribe(true)} disabled={loading || saving || !sourceUrl.trim()} className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">Transcribir y guardar en GitHub</button>}
                                         </div>
                                     )}
