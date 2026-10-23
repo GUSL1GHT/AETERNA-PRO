@@ -6,19 +6,19 @@ No guardar claves privadas dentro del repositorio.
 
 ## Estado actual
 
-La version actual es una web estatica pensada para GitHub Pages. Permite introducir una clave de Gemini desde el navegador y guardarla en el dispositivo mediante localStorage.
+La web de GitHub Pages permite introducir una clave propia de Gemini. La envía al backend por HTTPS para validarla y usarla; el backend la conserva únicamente en memoria. El navegador guarda en localStorage solo un identificador de sesión aleatorio, nunca la clave. Al reiniciarse o dormirse Render, hay que conectarla otra vez.
 
-Esto evita subir la clave al repositorio, pero no convierte la solucion en una arquitectura segura de produccion.
+Quien introduzca una clave debe confiar en el operador del backend. El servidor no utiliza la antigua variable `GEMINI_API_KEY` para peticiones públicas.
 
 ## Riesgo principal
 
-Toda aplicacion que llama a una API desde el navegador expone mas superficie de riesgo que una arquitectura con backend.
+La URL de la web y de la API son públicas. Sin un control de acceso adicional, cualquier visitante con una clave propia de Gemini puede ocupar recursos del backend de Render. La GitHub App sigue privada y no permite que terceros conecten sus repositorios.
 
-## Arquitectura recomendada para produccion
+## Arquitectura actual
 
 1. Frontend estatico en GitHub Pages.
 2. Backend seguro propio.
-3. La clave de Gemini guardada solo en el backend como variable de entorno.
+3. Cada usuario introduce su clave de Gemini; el backend la guarda temporalmente en memoria.
 4. El frontend llama al backend, no directamente a Gemini.
 
 ## Prohibido

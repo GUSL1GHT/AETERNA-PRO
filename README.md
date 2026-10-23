@@ -12,11 +12,11 @@ Aplicación web y PWA para transcribir enlaces de vídeos o publicaciones y, opc
 ## Probar en Windows
 
 1. Instalar Node.js 22 o superior y las dependencias de `backend/` (`npm install` o `pnpm install`).
-2. Configurar `GEMINI_API_KEY` en el entorno local para transcribir. Para iniciar sesión con GitHub se requieren `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET` y una GitHub App instalada solo en `AETERNA-TRANSCRIPTS` con permiso Contents de escritura.
+2. Abrir la interfaz y pulsar **Conectar Gemini** para introducir la clave propia. Para iniciar sesión con GitHub se requieren `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET` y una GitHub App instalada solo en `AETERNA-TRANSCRIPTS` con permiso Contents de escritura.
 3. Ejecutar `tools/run-dev.ps1`. Abre la web en `http://127.0.0.1:8080/` y la API en `http://127.0.0.1:3000/`.
 4. Consultar `tools/check-dev.ps1` y detener con `tools/stop-dev.ps1`.
 
-No se guardan credenciales en el repositorio. Sin clave de Gemini se puede verificar la interfaz y la conexión con la API, pero no una transcripción real.
+No se guardan credenciales en el repositorio. Cada usuario necesita su propia clave de Gemini para transcribir; la antigua `GEMINI_API_KEY` del servidor ya no se utiliza para las peticiones públicas. La clave introducida se envía al backend por HTTPS y queda únicamente en memoria del proceso; el navegador recuerda solo un identificador de sesión. Tras reiniciar o dormir Render habrá que conectarla de nuevo. La GitHub App continúa privada, por lo que otras personas aún no pueden conectar sus repositorios.
 
 ## Instalar como aplicación
 

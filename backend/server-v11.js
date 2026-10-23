@@ -16,7 +16,64 @@ const upload = multer({ dest: 'uploads/' });
 app.use(cors());
 app.use(express.json({ limit: '2mb' }));
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const geminiSessions = new Map();
+const GEMINI_SESSION_MS = 7 * 24 * 60 * 60 * 1000;
+const geminiSessionFromRequest = (req) => {
+  const sessionId = req.get('X-Aeterna-Gemini-Session') || '';
+  if (!/^[a-f0-9]{64}$/.test(sessionId)) return null;
+  const session = geminiSessions.get(sessionId);
+  if (!session) return null;
+  if (Date.now() - session.lastUsed > GEMINI_SESSION_MS) {
+    geminiSessions.delete(sessionId);
+    return null;
+  }
+  session.lastUsed = Date.now();
+  return session;
+};
+const requireGeminiSession = (req, res, next) => {
+  const session = geminiSessionFromRequest(req);
+  if (!session) return res.status(401).json({ success: false, error: 'Conecta Gemini para transcribir.' });
+  req.geminiAi = new GoogleGenAI({ apiKey: session.apiKey });
+  next();
+};
+
+app.post('/api/gemini-auth/connect', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const apiKey = String(req.body?.apiKey || '').trim();
+  if (!apiKey || apiKey.length > 256 || /\s/.test(apiKey)) {
+    return res.status(400).json({ error: 'Introduce una clave de Gemini válida.' });
+  }
+  try {
+    const check = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite', {
+      headers: { 'x-goog-api-key': apiKey },
+      signal: AbortSignal.timeout(10000)
+    });
+    if (!check.ok) {
+      return res.status(400).json({ error: 'No se ha podido validar la clave de Gemini. Compruébala e inténtalo de nuevo.' });
+    }
+    for (const [id, session] of geminiSessions) {
+      if (Date.now() - session.lastUsed > GEMINI_SESSION_MS) geminiSessions.delete(id);
+    }
+    if (geminiSessions.size >= 1000) geminiSessions.delete(geminiSessions.keys().next().value);
+    const sessionId = crypto.randomBytes(32).toString('hex');
+    geminiSessions.set(sessionId, { apiKey, lastUsed: Date.now() });
+    res.json({ connected: true, sessionId });
+  } catch (_) {
+    res.status(502).json({ error: 'No se ha podido conectar con Gemini. Inténtalo de nuevo.' });
+  }
+});
+
+app.get('/api/gemini-auth/status', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ connected: !!geminiSessionFromRequest(req) });
+});
+
+app.post('/api/gemini-auth/logout', (req, res) => {
+  const sessionId = req.get('X-Aeterna-Gemini-Session') || '';
+  if (/^[a-f0-9]{64}$/.test(sessionId)) geminiSessions.delete(sessionId);
+  res.set('Cache-Control', 'no-store');
+  res.json({ success: true });
+});
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -301,7 +358,7 @@ const buildFallbackTermAudit = (transcription) => {
   };
 };
 
-const generateKnowledgeMetadata = async ({ title, transcription }) => {
+const generateKnowledgeMetadata = async ({ title, transcription }, ai) => {
   const normalizedTranscript = normalizeKnownTerms(transcription);
   const fallbackTitle = isWeakTitle(title) ? fallbackTitleFromTranscript(normalizedTranscript) : normalizeKnownTerms(title);
   const fallbackAudit = buildFallbackTermAudit(transcription);
@@ -593,7 +650,7 @@ Reglas obligatorias:
 - Si ninguna imagen contiene texto informativo legible, devuelve exactamente [SIN_TEXTO_VISUAL].
 - Devuelve únicamente el texto extraído, sin introducción.`;
 
-const generateTranscription = async (mediaPart, mode = 'audio', promptOverride = null) => {
+const generateTranscription = async (ai, mediaPart, mode = 'audio', promptOverride = null) => {
   const models = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
   let lastError = null;
 
@@ -623,7 +680,7 @@ const generateTranscription = async (mediaPart, mode = 'audio', promptOverride =
   throw lastError || new Error('Gemini no ha respondido.');
 };
 
-const transcribeWithGeminiFile = async ({ filePath, mimeType, mode = 'audio' }) => {
+const transcribeWithGeminiFile = async (ai, { filePath, mimeType, mode = 'audio' }) => {
   const uploadResult = await ai.files.upload({
     file: filePath,
     config: { mimeType }
@@ -635,7 +692,7 @@ const transcribeWithGeminiFile = async ({ filePath, mimeType, mode = 'audio' }) 
     fileState = await ai.files.get({ name: uploadResult.name });
   }
   if (fileState.state !== 'ACTIVE') throw new Error(`El archivo falló con estado: ${fileState.state}`);
-  return generateTranscription(createPartFromUri(uploadResult.uri, uploadResult.mimeType), mode);
+  return generateTranscription(ai, createPartFromUri(uploadResult.uri, uploadResult.mimeType), mode);
 };
 
 const tikTokPhotoMatch = (value) => {
@@ -686,7 +743,7 @@ const readTikTokImagePart = async (url) => {
   return { inlineData: { mimeType, data: buffer.toString('base64') } };
 };
 
-const readTikTokPhotoText = async (sourceUrl) => {
+const readTikTokPhotoText = async (ai, sourceUrl) => {
   const imageUrls = await fetchTikTokPhotoImages(sourceUrl);
   const sections = [];
   let model = '';
@@ -695,7 +752,7 @@ const readTikTokPhotoText = async (sourceUrl) => {
   let encodedBytes = 0;
   const processBatch = async () => {
     if (!parts.length) return;
-    const result = await generateTranscription(parts, 'visual', `${visualPhotoPrompt}\nEstas son las imágenes ${firstImage} a ${firstImage + parts.length - 1}.`);
+    const result = await generateTranscription(ai, parts, 'visual', `${visualPhotoPrompt}\nEstas son las imágenes ${firstImage} a ${firstImage + parts.length - 1}.`);
     model = result.model;
     if (result.transcription && !result.transcription.includes('[SIN_TEXTO_VISUAL]')) sections.push(result.transcription);
     firstImage += parts.length;
@@ -814,14 +871,10 @@ app.post('/api/github-auth/logout', (req, res) => {
   res.json({ success: true });
 });
 
-app.post('/api/transcribe', upload.single('file'), async (req, res) => {
+app.post('/api/transcribe', requireGeminiSession, upload.single('file'), async (req, res) => {
   let filePath = null;
 
   try {
-    if (!process.env.GEMINI_API_KEY) {
-      return res.status(500).json({ success: false, error: 'Falta configurar GEMINI_API_KEY en el servidor.' });
-    }
-
     if (!req.file) {
       return res.status(400).json({ success: false, error: 'No se ha seleccionado ningún archivo.' });
     }
@@ -832,7 +885,7 @@ app.post('/api/transcribe', upload.single('file'), async (req, res) => {
     if (mode === 'visual' && !mimeType.startsWith('video/')) {
       return res.status(400).json({ success: false, error: 'Para extraer texto visual, selecciona un archivo de vídeo.' });
     }
-    const result = await transcribeWithGeminiFile({ filePath, mimeType, mode });
+    const result = await transcribeWithGeminiFile(req.geminiAi, { filePath, mimeType, mode });
     if (mode === 'visual' && (!result.transcription || result.transcription.includes('[SIN_TEXTO_VISUAL]'))) {
       return res.status(422).json({ success: false, error: 'No se ha encontrado texto visual legible en este vídeo.' });
     }
@@ -861,14 +914,10 @@ app.post('/api/transcribe', upload.single('file'), async (req, res) => {
   }
 });
 
-app.post('/api/transcribe-url', async (req, res) => {
+app.post('/api/transcribe-url', requireGeminiSession, async (req, res) => {
   let tempDir = null;
 
   try {
-    if (!process.env.GEMINI_API_KEY) {
-      return res.status(500).json({ success: false, error: 'Falta configurar GEMINI_API_KEY en el servidor.' });
-    }
-
     const sourceUrl = cleanText(req.body?.url || '');
     const mode = req.body?.mode === 'visual' ? 'visual' : 'audio';
     if (!sourceUrl || !/^https?:\/\//i.test(sourceUrl)) {
@@ -882,7 +931,7 @@ app.post('/api/transcribe-url', async (req, res) => {
       if (mode !== 'visual') {
         return res.status(400).json({ success: false, error: 'Este enlace es una publicación de fotos. Pulsa «Leer texto de las imágenes».' });
       }
-      const result = await readTikTokPhotoText(sourceUrl);
+      const result = await readTikTokPhotoText(req.geminiAi, sourceUrl);
       if (!result.transcription) {
         return res.status(422).json({ success: false, error: 'No se ha encontrado texto visual legible en estas imágenes.' });
       }
@@ -902,7 +951,7 @@ app.post('/api/transcribe-url', async (req, res) => {
     if (isYouTubeUrl(sourceUrl)) {
       const canonicalUrl = canonicalYouTubeUrl(sourceUrl);
       if (!canonicalUrl) return res.status(400).json({ success: false, error: 'No se ha encontrado un identificador de vídeo de YouTube válido.' });
-      const result = await generateTranscription({ fileData: { fileUri: canonicalUrl, mimeType: 'video/*' } }, mode);
+      const result = await generateTranscription(req.geminiAi, { fileData: { fileUri: canonicalUrl, mimeType: 'video/*' } }, mode);
       if (mode === 'visual' && (!result.transcription || result.transcription.includes('[SIN_TEXTO_VISUAL]'))) {
         return res.status(422).json({ success: false, error: 'No se ha encontrado texto visual legible en este vídeo.' });
       }
@@ -926,7 +975,7 @@ app.post('/api/transcribe-url', async (req, res) => {
       return res.status(422).json({ success: false, error: 'Solo se ha podido obtener audio de este enlace. Para leer las imágenes, sube el archivo de vídeo.' });
     }
 
-    const result = await transcribeWithGeminiFile({ filePath: downloaded.filePath, mimeType: downloaded.mimeType, mode });
+    const result = await transcribeWithGeminiFile(req.geminiAi, { filePath: downloaded.filePath, mimeType: downloaded.mimeType, mode });
     if (mode === 'visual' && (!result.transcription || result.transcription.includes('[SIN_TEXTO_VISUAL]'))) {
       return res.status(422).json({ success: false, error: 'No se ha encontrado texto visual legible en este vídeo.' });
     }
@@ -956,7 +1005,7 @@ app.post('/api/transcribe-url', async (req, res) => {
   }
 });
 
-app.post('/api/save-transcript-to-github', async (req, res) => {
+app.post('/api/save-transcript-to-github', requireGeminiSession, async (req, res) => {
   try {
     const session = await sessionFromRequest(req);
     if (!session) return res.status(401).json({ success: false, error: 'Conecta tu cuenta de GitHub para guardar la transcripción.' });
@@ -974,7 +1023,7 @@ app.post('/api/save-transcript-to-github', async (req, res) => {
       return res.status(400).json({ success: false, error: 'No hay transcripción para guardar.' });
     }
 
-    const metadata = await generateKnowledgeMetadata({ title, transcription });
+    const metadata = await generateKnowledgeMetadata({ title, transcription }, req.geminiAi);
 
     const now = new Date();
     const datePrefix = now.toISOString().slice(0, 10);
