@@ -27,6 +27,7 @@
             const [saving, setSaving] = useState(false);
             const [result, setResult] = useState(null);
             const [resultMeta, setResultMeta] = useState(null);
+            const [activeMode, setActiveMode] = useState('audio');
             const [visualVerification, setVisualVerification] = useState(false);
             const [mediaFile, setMediaFile] = useState(null);
             const [previewUrl, setPreviewUrl] = useState(null);
@@ -166,7 +167,8 @@
                     model: responseData.model || "",
                     fileName: responseData.fileName || fallbackFileName || "",
                     sourceUrl: responseData.sourceUrl || sourceUrl || "",
-                    platform: responseData.platform || ""
+                    platform: responseData.platform || "",
+                    mode: responseData.mode || 'audio'
                 });
             };
 
@@ -194,7 +196,7 @@
                 return data;
             };
 
-            const handleUrlTranscribe = async (autoSave = false) => {
+            const handleUrlTranscribe = async (autoSave = false, mode = 'audio') => {
                 const url = sourceUrl.trim();
                 if (!url) {
                     setErrorMsg("Pega una URL de TikTok, YouTube u otra plataforma compatible.");
@@ -210,6 +212,7 @@
 
                 setLoading(true);
                 setSaving(autoSave);
+                setActiveMode(mode);
                 resetOutput();
                 setUrlProgress(5);
                 setProgressEstimateMs(estimate);
@@ -224,7 +227,7 @@
                     const response = await fetch(`${BACKEND_URL}/api/transcribe-url`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ url })
+                        body: JSON.stringify({ url, mode })
                     });
                     const data = await response.json();
                     if (!response.ok || !data.success) {
@@ -256,13 +259,15 @@
                 }
             };
 
-            const handleFileTranscribe = () => {
+            const handleFileTranscribe = (mode = 'audio') => {
                 if (!mediaFile) return;
                 setLoading(true);
+                setActiveMode(mode);
                 resetOutput();
 
                 const formData = new FormData();
                 formData.append("file", mediaFile);
+                formData.append("mode", mode);
 
                 const xhr = new XMLHttpRequest();
                 xhr.open("POST", `${BACKEND_URL}/api/transcribe`, true);
@@ -368,7 +373,7 @@
                                     {urlTranscribing ? (
                                         <div className="rounded-xl border border-cyan-900/60 bg-slate-900/60 p-3 text-left" aria-live="polite">
                                             <div className="flex justify-between gap-3 text-xs text-cyan-300 mb-2">
-                                                <span>{saving ? 'Transcribiendo y guardando' : 'Transcribiendo'} · progreso estimado</span>
+                                                <span>{activeMode === 'visual' ? 'Leyendo imágenes' : saving ? 'Transcribiendo y guardando' : 'Transcribiendo'} · progreso estimado</span>
                                                 <span>{urlProgress}%</span>
                                             </div>
                                             <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden" role="progressbar" aria-label="Progreso estimado de la transcripción" aria-valuemin="0" aria-valuemax="100" aria-valuenow={urlProgress}>
@@ -379,6 +384,7 @@
                                     ) : (
                                         <div className="grid grid-cols-1 gap-2">
                                             <button onClick={() => handleUrlTranscribe(false)} disabled={loading || !sourceUrl.trim()} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">Transcribir URL</button>
+                                            <button onClick={() => handleUrlTranscribe(false, 'visual')} disabled={loading || !sourceUrl.trim()} className="bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">Leer texto de las imágenes</button>
                                             {githubConnected && githubRepository && <button onClick={() => handleUrlTranscribe(true)} disabled={loading || saving || !sourceUrl.trim()} className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">Transcribir y guardar en GitHub</button>}
                                         </div>
                                     )}
@@ -402,7 +408,10 @@
                                                 {uploadProgress === 100 && <p className="text-[10px] text-slate-400 mt-2">Archivo enviado. Esperando la transcripción.</p>}
                                             </div>
                                         ) : (
-                                            <button onClick={handleFileTranscribe} disabled={!mediaFile} className="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">Transcribir archivo manual</button>
+                                            <div className="grid gap-2">
+                                                <button onClick={() => handleFileTranscribe('audio')} disabled={!mediaFile} className="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">Transcribir archivo manual</button>
+                                                {isVideo && <button onClick={() => handleFileTranscribe('visual')} className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-xl transition-all">Leer texto de las imágenes</button>}
+                                            </div>
                                         )}
                                     </div>
                                 </details>}
@@ -430,8 +439,9 @@
 
                                 {result && (
                                     <>
-                                        {resultMeta?.platform === 'YouTube' && <p className="text-xs text-sky-300">Si YouTube reproduce un doblaje automático, la transcripción se traduce al español desde el audio disponible y puede no coincidir palabra por palabra con ese doblaje.</p>}
-                                        {!visualVerification && resultMeta?.sourceUrl && <p className="text-xs text-amber-300">Solo audio disponible: revisa los nombres de programas con el vídeo original.</p>}
+                                        {resultMeta?.mode === 'visual' && <p className="text-xs text-sky-300">Texto leído de las imágenes, en su idioma original. Las marcas de tiempo son aproximadas; revisa los fragmentos [ilegible].</p>}
+                                        {resultMeta?.mode !== 'visual' && resultMeta?.platform === 'YouTube' && <p className="text-xs text-sky-300">Si YouTube reproduce un doblaje automático, la transcripción se traduce al español desde el audio disponible y puede no coincidir palabra por palabra con ese doblaje.</p>}
+                                        {resultMeta?.mode !== 'visual' && !visualVerification && resultMeta?.sourceUrl && <p className="text-xs text-amber-300">Solo audio disponible: revisa los nombres de programas con el vídeo original.</p>}
                                         <div className="flex-1 min-h-0 bg-slate-950 p-3 md:p-4 rounded-2xl border border-slate-700 text-slate-100 text-sm whitespace-pre-wrap leading-relaxed overflow-y-auto shadow-inner" role="region" aria-label="Texto transcrito" tabIndex="0">
                                             {result}
                                         </div>

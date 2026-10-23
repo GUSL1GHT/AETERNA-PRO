@@ -573,7 +573,17 @@ Reglas obligatorias:
 - No añadas títulos, introducciones, conclusiones, notas ni comentarios.
 - Devuelve únicamente la transcripción.`;
 
-const generateTranscription = async (mediaPart) => {
+const visualTextPrompt = `Extrae exclusivamente la información escrita que aparece en las imágenes de este vídeo. Ignora por completo la voz, la música, los subtítulos automáticos y el texto de la interfaz de la plataforma.
+
+Reglas obligatorias:
+- Recorre el vídeo en orden temporal. Lee cada pantalla, diapositiva o imagen informativa visible, incluidas las que aparecen brevemente si son legibles.
+- Conserva literalmente el idioma, los nombres propios, los números y el orden del texto. No traduzcas, resumas, corrijas ni completes con conocimientos externos.
+- Agrupa el texto por pantalla con una marca de tiempo aproximada [mm:ss]. Si una pantalla permanece igual o reaparece sin cambios, no repitas su contenido.
+- Incluye solo texto que puedas ver. Si una parte no se distingue, escribe [ilegible] en su posición. No inventes palabras ni describas imágenes sin texto.
+- Si no hay ningún texto informativo legible, devuelve exactamente [SIN_TEXTO_VISUAL].
+- Devuelve únicamente el texto extraído y sus marcas de tiempo.`;
+
+const generateTranscription = async (mediaPart, mode = 'audio') => {
   const models = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
   let lastError = null;
 
@@ -583,14 +593,14 @@ const generateTranscription = async (mediaPart) => {
         model,
         contents: createUserContent([
           mediaPart,
-          transcriptionPrompt
+          mode === 'visual' ? visualTextPrompt : transcriptionPrompt
         ]),
         config: { temperature: 0 }
       });
 
       return {
         model,
-        transcription: normalizeKnownTerms(response.text || '')
+        transcription: mode === 'visual' ? cleanText(response.text || '') : normalizeKnownTerms(response.text || '')
       };
     } catch (error) {
       lastError = error;
@@ -603,7 +613,7 @@ const generateTranscription = async (mediaPart) => {
   throw lastError || new Error('Gemini no ha respondido.');
 };
 
-const transcribeWithGeminiFile = async ({ filePath, mimeType }) => {
+const transcribeWithGeminiFile = async ({ filePath, mimeType, mode = 'audio' }) => {
   const uploadResult = await ai.files.upload({
     file: filePath,
     config: { mimeType }
@@ -615,7 +625,7 @@ const transcribeWithGeminiFile = async ({ filePath, mimeType }) => {
     fileState = await ai.files.get({ name: uploadResult.name });
   }
   if (fileState.state !== 'ACTIVE') throw new Error(`El archivo falló con estado: ${fileState.state}`);
-  return generateTranscription(createPartFromUri(uploadResult.uri, uploadResult.mimeType));
+  return generateTranscription(createPartFromUri(uploadResult.uri, uploadResult.mimeType), mode);
 };
 
 const isYouTubeUrl = (value) => {
@@ -734,13 +744,21 @@ app.post('/api/transcribe', upload.single('file'), async (req, res) => {
 
     filePath = req.file.path;
     const mimeType = req.file.mimetype || 'video/mp4';
-    const result = await transcribeWithGeminiFile({ filePath, mimeType });
+    const mode = req.body?.mode === 'visual' ? 'visual' : 'audio';
+    if (mode === 'visual' && !mimeType.startsWith('video/')) {
+      return res.status(400).json({ success: false, error: 'Para extraer texto visual, selecciona un archivo de vídeo.' });
+    }
+    const result = await transcribeWithGeminiFile({ filePath, mimeType, mode });
+    if (mode === 'visual' && (!result.transcription || result.transcription.includes('[SIN_TEXTO_VISUAL]'))) {
+      return res.status(422).json({ success: false, error: 'No se ha encontrado texto visual legible en este vídeo.' });
+    }
     const suggestedTitle = fallbackTitleFromTranscript(result.transcription);
 
     res.json({
       success: true,
       model: result.model,
       fileName: req.file.originalname,
+      mode,
       suggestedTitle,
       transcription: result.transcription
     });
@@ -768,6 +786,7 @@ app.post('/api/transcribe-url', async (req, res) => {
     }
 
     const sourceUrl = cleanText(req.body?.url || '');
+    const mode = req.body?.mode === 'visual' ? 'visual' : 'audio';
     if (!sourceUrl || !/^https?:\/\//i.test(sourceUrl)) {
       return res.status(400).json({ success: false, error: 'Pega una URL válida de TikTok, YouTube u otra plataforma compatible.' });
     }
@@ -778,13 +797,17 @@ app.post('/api/transcribe-url', async (req, res) => {
     if (isYouTubeUrl(sourceUrl)) {
       const canonicalUrl = canonicalYouTubeUrl(sourceUrl);
       if (!canonicalUrl) return res.status(400).json({ success: false, error: 'No se ha encontrado un identificador de vídeo de YouTube válido.' });
-      const result = await generateTranscription({ fileData: { fileUri: canonicalUrl, mimeType: 'video/*' } });
+      const result = await generateTranscription({ fileData: { fileUri: canonicalUrl, mimeType: 'video/*' } }, mode);
+      if (mode === 'visual' && (!result.transcription || result.transcription.includes('[SIN_TEXTO_VISUAL]'))) {
+        return res.status(422).json({ success: false, error: 'No se ha encontrado texto visual legible en este vídeo.' });
+      }
       return res.json({
         success: true,
         model: result.model,
         fileName: 'YouTube',
         sourceUrl,
         platform: 'YouTube',
+        mode,
         visualVerification: true,
         suggestedTitle: fallbackTitleFromTranscript(result.transcription),
         transcription: result.transcription
@@ -794,7 +817,14 @@ app.post('/api/transcribe-url', async (req, res) => {
     const downloaded = await downloadMediaFromUrl(sourceUrl);
     tempDir = downloaded.tempDir;
 
-    const result = await transcribeWithGeminiFile({ filePath: downloaded.filePath, mimeType: downloaded.mimeType });
+    if (mode === 'visual' && !downloaded.mimeType.startsWith('video/')) {
+      return res.status(422).json({ success: false, error: 'Solo se ha podido obtener audio de este enlace. Para leer las imágenes, sube el archivo de vídeo.' });
+    }
+
+    const result = await transcribeWithGeminiFile({ filePath: downloaded.filePath, mimeType: downloaded.mimeType, mode });
+    if (mode === 'visual' && (!result.transcription || result.transcription.includes('[SIN_TEXTO_VISUAL]'))) {
+      return res.status(422).json({ success: false, error: 'No se ha encontrado texto visual legible en este vídeo.' });
+    }
     const suggestedTitle = fallbackTitleFromTranscript(result.transcription);
 
     res.json({
@@ -803,6 +833,7 @@ app.post('/api/transcribe-url', async (req, res) => {
       fileName: downloaded.fileName,
       sourceUrl,
       platform: inferPlatformFromUrl(sourceUrl),
+      mode,
       visualVerification: downloaded.mimeType.startsWith('video/'),
       suggestedTitle,
       transcription: result.transcription
