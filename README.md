@@ -18,6 +18,10 @@ Aplicación web y PWA para transcribir enlaces de vídeos o publicaciones y, opc
 
 No se guardan credenciales en el repositorio. Sin clave de Gemini se puede verificar la interfaz y la conexión con la API, pero no una transcripción real.
 
+## Instalar como aplicación
+
+La web pública es una PWA con icono propio. En Chrome para Android, abrir la URL de AETERNA y elegir **Instalar aplicación** en el menú del navegador, o pulsar **Instalar app** cuando aparezca en el pie de la interfaz. En Chrome de escritorio, usar **Instalar** en la barra de direcciones o en el menú. La instalación crea un icono y abre AETERNA en una ventana independiente; las transcripciones siguen necesitando Internet y el backend. No hace falta una APK para este uso. Una APK requeriría un empaquetado Android y firma adicionales.
+
 ## Despliegue y limpieza
 
 GitHub Pages sirve la interfaz; Render sirve el backend. La URL pública es [AETERNA PRO](https://gusl1ght.github.io/AETERNA-PRO/). Los vídeos públicos de YouTube se envían directamente a Gemini; otras plataformas usan un extractor `yt-dlp` verificado. Se procesa vídeo cuando está disponible para comprobar los nombres visibles; si solo puede obtener audio, la interfaz lo indica. La interfaz acepta enlaces únicamente; el backend conserva su ruta de archivos sin exponerla en la web. La conexión GitHub usa autorización de usuario con PKCE: el token de GitHub permanece en memoria del backend y el navegador conserva un identificador de sesión temporal. El servidor deja de aceptar escrituras anónimas con su antiguo `GITHUB_TOKEN`.

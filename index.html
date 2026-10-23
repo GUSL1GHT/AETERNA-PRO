@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>AETERNA | Digital Synthesis</title>
+    <meta name="theme-color" content="#020617">
+    <meta name="description" content="Transcribe vídeos y extrae texto visible desde un enlace.">
+    <link rel="manifest" href="./manifest.webmanifest">
+    <link rel="icon" type="image/svg+xml" href="./icon.svg">
+    <link rel="apple-touch-icon" href="./icon-180.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -47,6 +52,25 @@
             const [githubRepository, setGithubRepository] = useState(() => localStorage.getItem('aeterna-github-repository') || '');
             const [githubInstallUrl, setGithubInstallUrl] = useState('');
             const [repositoryLoading, setRepositoryLoading] = useState(false);
+            const [installPrompt, setInstallPrompt] = useState(null);
+
+            useEffect(() => {
+                const onInstallPrompt = (event) => { event.preventDefault(); setInstallPrompt(event); };
+                const onInstalled = () => setInstallPrompt(null);
+                window.addEventListener('beforeinstallprompt', onInstallPrompt);
+                window.addEventListener('appinstalled', onInstalled);
+                return () => {
+                    window.removeEventListener('beforeinstallprompt', onInstallPrompt);
+                    window.removeEventListener('appinstalled', onInstalled);
+                };
+            }, []);
+
+            const installApp = async () => {
+                if (!installPrompt) return;
+                await installPrompt.prompt();
+                await installPrompt.userChoice;
+                setInstallPrompt(null);
+            };
 
             const loadRepositories = async (session) => {
                 setRepositoryLoading(true);
@@ -379,6 +403,7 @@
                         </main>
 
                         <footer className="shrink-0 border-t border-slate-800 px-4 py-2 text-center relative">
+                            {installPrompt && <button onClick={installApp} className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-cyan-300 hover:text-cyan-200">Instalar app</button>}
                             <p className="text-[8px] text-slate-500 opacity-90 uppercase tracking-[0.35em]">Architected by GUSLIGHT</p>
                             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[7px] md:text-[8px] text-slate-400 opacity-90 tracking-[0.12em] pointer-events-none">Beta v1.2</span>
                         </footer>
@@ -389,6 +414,11 @@
 
         const root = ReactDOM.createRoot(document.getElementById("root"));
         root.render(<App />);
+    </script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+        }
     </script>
 </body>
 </html>

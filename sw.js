@@ -1,9 +1,11 @@
-const CACHE_NAME = "aeterna-pro-v1";
+const CACHE_NAME = "aeterna-pro-v2";
 const CORE_ASSETS = [
   "./",
   "./index.html",
   "./manifest.webmanifest",
-  "./icon.svg"
+  "./icon.svg",
+  "./icon-192.png",
+  "./icon-512.png"
 ];
 
 self.addEventListener("install", (event) => {
@@ -16,7 +18,7 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) => Promise.all(
-      keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+      keys.filter((key) => key.startsWith('aeterna-pro-') && key !== CACHE_NAME).map((key) => caches.delete(key))
     ))
   );
   self.clients.claim();
@@ -27,12 +29,12 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) {
-        return cached;
-      }
-      return fetch(event.request);
-    })
-  );
+  if (new URL(event.request.url).origin !== self.location.origin) return;
+  event.respondWith(fetch(event.request).then((response) => {
+    if (response.ok && event.request.mode === 'navigate') {
+      const copy = response.clone();
+      caches.open(CACHE_NAME).then((cache) => cache.put('./index.html', copy));
+    }
+    return response;
+  }).catch(() => caches.match(event.request, { ignoreSearch: true })));
 });
