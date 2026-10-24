@@ -1084,7 +1084,7 @@ app.post('/api/create-guide', requireGeminiSession, async (req, res) => {
           if (!name) continue;
           let url = cleanText(item?.url);
           if (!/^https:\/\//i.test(url) || !transcription.includes(url)) url = '';
-          if (!url && item?.kind === 'github') {
+          if (!url) {
             try {
               const search = await fetch(`https://api.github.com/search/repositories?q=${encodeURIComponent(name)}&per_page=5`, { headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'AETERNA-PRO' }, signal: AbortSignal.timeout(7000) });
               if (search.ok) {
@@ -1092,13 +1092,30 @@ app.post('/api/create-guide', requireGeminiSession, async (req, res) => {
                 const normalize = value => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
                 const wanted = normalize(name.split('/').pop());
                 const match = hits.find(hit => normalize(hit.name) === wanted && (!name.includes('/') || normalize(hit.full_name) === normalize(name)));
-                if (match) url = match.html_url;
+                if (match) {
+                  url = match.html_url;
+                  if (item?.kind === 'website' && match.stargazers_count >= 30) {
+                    const homepage = cleanText(match.homepage);
+                    const description = cleanText(match.description);
+                    try {
+                      const parsed = new URL(homepage);
+                      if (parsed.protocol === 'https:' && !parsed.username && !parsed.password && description.toLowerCase().includes(parsed.hostname.toLowerCase())) url = parsed.href;
+                    } catch (_) { /* Keep the matching source repository. */ }
+                  }
+                }
               }
             } catch (_) { /* An unavailable search never becomes a guessed link. */ }
           }
-          resources.push(`${name}: ${url || 'Enlace oficial no verificado'}`);
+          resources.push({ name, url });
         }
-        const guide = `${cleanText(generated.title || title || 'Guía paso a paso').slice(0, 100)}\n\n${steps.map((step, index) => `${index + 1}. ${step}`).join('\n')}\n\n${resources.length ? `Enlaces útiles\n${resources.join('\n')}\n\n` : ''}${validSourceUrl ? `Vídeo original: ${validSourceUrl}` : ''}`.trim();
+        const linked = new Set();
+        const stepText = steps.map((step, index) => {
+          const resource = resources.find(item => item.url && !linked.has(item.name) && step.toLowerCase().includes(item.name.toLowerCase()));
+          if (resource) linked.add(resource.name);
+          return `${index + 1}. ${step}${resource ? ` ${resource.url}` : ''}`;
+        }).join('\n');
+        const remaining = resources.filter(item => item.url && !linked.has(item.name));
+        const guide = `${cleanText(generated.title || title || 'Guía paso a paso').slice(0, 100)}\n\n${stepText}${remaining.length ? `\n\nEnlaces\n${remaining.map(item => `${item.name}: ${item.url}`).join('\n')}` : ''}${resources.some(item => !item.url) ? `\n\n${resources.filter(item => !item.url).map(item => `${item.name}: enlace no encontrado con seguridad`).join('\n')}` : ''}${validSourceUrl ? `\n\nVídeo original: ${validSourceUrl}` : ''}`.trim();
         return res.json({ success: true, guide, model });
       } catch (error) {
         lastError = error;
