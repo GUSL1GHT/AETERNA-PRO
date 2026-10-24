@@ -1066,13 +1066,26 @@ app.post('/api/create-guide', requireGeminiSession, async (req, res) => {
   try {
     const models = [...new Set(req.geminiModels || [])].sort((a, b) => Number(b.includes('lite')) - Number(a.includes('lite')));
     let lastError;
-    for (const model of models) {
+    for (const [modelIndex, model] of models.slice(0, 3).entries()) {
       try {
-        const response = await req.geminiAi.models.generateContent({
-          model,
-          contents: createUserContent(prompt),
-          config: { temperature: 0, maxOutputTokens: 1600, responseMimeType: 'application/json' }
-        });
+        let response;
+        for (let attempt = 0; attempt < (modelIndex === 0 ? 2 : 1); attempt++) {
+          try {
+            response = await req.geminiAi.models.generateContent({
+              model,
+              contents: createUserContent(prompt),
+              config: { temperature: 0, maxOutputTokens: 1600, responseMimeType: 'application/json' }
+            });
+            break;
+          } catch (error) {
+            const overloaded = /503|unavailable|overloaded/i.test(stringifyError(error));
+            if (overloaded && attempt === 0 && modelIndex === 0) {
+              await sleep(1500);
+              continue;
+            }
+            throw error;
+          }
+        }
         const generated = JSON.parse(cleanText(response.text));
         const steps = Array.isArray(generated.steps) ? generated.steps.filter(step => typeof step === 'string').slice(0, 6).map(step => cleanText(step).slice(0, 160)) : [];
         if (!steps.length) {
@@ -1151,7 +1164,7 @@ app.post('/api/create-guide', requireGeminiSession, async (req, res) => {
         return res.json({ success: true, guide, model });
       } catch (error) {
         lastError = error;
-        if (isModelUnavailableError(error)) continue;
+        if (isModelUnavailableError(error) || /503|unavailable|overloaded/i.test(stringifyError(error))) continue;
         throw error;
       }
     }
