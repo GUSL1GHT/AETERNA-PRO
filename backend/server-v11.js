@@ -1108,6 +1108,38 @@ app.post('/api/create-guide', requireGeminiSession, async (req, res) => {
           }
           resources.push({ name, url });
         }
+        const missingWebsites = resources.filter(item => !item.url);
+        if (missingWebsites.length && models.includes('gemini-2.5-flash-lite')) {
+          try {
+            const names = missingWebsites.map(item => item.name);
+            const lookup = await req.geminiAi.models.generateContent({
+              model: 'gemini-2.5-flash-lite',
+              contents: createUserContent(`Busca la página oficial de descarga o la ficha oficial del fabricante para estos programas: ${JSON.stringify(names)}. Responde solo una línea por programa con formato NOMBRE | URL HTTPS. No uses portales de terceros, resultados de búsqueda ni URLs inventadas. Si no la encuentras, omite esa línea.`),
+              config: { tools: [{ googleSearch: {} }], temperature: 0, maxOutputTokens: 500 }
+            });
+            const grounded = lookup.candidates?.[0]?.groundingMetadata;
+            if (grounded?.webSearchQueries?.length && grounded?.groundingChunks?.length) {
+              const normalize = value => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+              for (const line of cleanText(lookup.text).split('\n')) {
+                const [foundName, rawUrl] = line.split('|').map(part => part?.trim());
+                const item = missingWebsites.find(entry => normalize(entry.name) === normalize(foundName));
+                if (!item || !rawUrl) continue;
+                try {
+                  const candidate = new URL(rawUrl);
+                  if (candidate.protocol !== 'https:' || candidate.username || candidate.password || candidate.hostname === 'localhost' || /^\d+\.\d+\.\d+\.\d+$/.test(candidate.hostname)) continue;
+                  if (/(google\.|bing\.|duckduckgo\.|softonic\.|uptodown\.)/i.test(candidate.hostname)) continue;
+                  const source = grounded.groundingChunks.some(chunk => {
+                    const title = cleanText(chunk.web?.title);
+                    return normalize(title).includes(normalize(item.name));
+                  });
+                  if (source) item.url = candidate.href;
+                } catch (_) { /* Ignore malformed search results. */ }
+              }
+            }
+          } catch (error) {
+            console.warn('No se pudo completar la búsqueda web de la guía:', error.message);
+          }
+        }
         const linked = new Set();
         const stepText = steps.map((step, index) => {
           const resource = resources.find(item => item.url && !linked.has(item.name) && step.toLowerCase().includes(item.name.toLowerCase()));
