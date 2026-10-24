@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>AETERNA | Digital Synthesis</title>
     <meta name="theme-color" content="#020617">
-    <meta name="description" content="Transcribe vídeos y extrae texto visible desde un enlace.">
+    <meta name="description" content="Transcribe vídeos y publicaciones con imágenes para compartir o guardar.">
     <link rel="manifest" href="./manifest.webmanifest">
     <link rel="icon" type="image/svg+xml" href="./icon.svg">
     <link rel="apple-touch-icon" href="./icon-180.png">
@@ -277,7 +277,7 @@
             const handleUrlTranscribe = async (autoSave = false, mode = 'audio') => {
                 const url = sourceUrl.trim();
                 if (!url) {
-                    setErrorMsg("Pega una URL de TikTok, YouTube u otra plataforma compatible.");
+                    setErrorMsg("Pega un enlace de YouTube, TikTok u otra plataforma compatible.");
                     return;
                 }
 
@@ -329,7 +329,7 @@
                         ? (['localhost', '127.0.0.1'].includes(location.hostname)
                             ? 'No se puede conectar con la API local. Abre la aplicación con tools/run-dev.ps1 y comprueba que muestre «API OK / UI OK».'
                             : 'No se puede conectar con el servidor. Espera un momento y vuelve a intentarlo.')
-                        : error.message || "Error transcribiendo desde URL.");
+                        : error.message || "No se ha podido transcribir este contenido.");
                 } finally {
                     setUrlTranscribing(false);
                     setLoading(false);
@@ -374,7 +374,7 @@
                         <header className="shrink-0 px-3 py-2 md:px-4 md:py-3 border-b border-slate-800 text-center">
                             <h1 className="text-2xl md:text-4xl font-light text-white tracking-[0.24em] uppercase leading-none">AETERNA</h1>
                             <p className="text-[8px] md:text-[9px] text-slate-500 tracking-[0.35em] uppercase mt-1">Digital Synthesis</p>
-                            <p className="hidden sm:block text-xs text-slate-400 mt-2">Convierte enlaces en transcripciones que puedes compartir o guardar.</p>
+                            <p className="hidden sm:block text-xs text-slate-400 mt-2">Transcribe vídeos y publicaciones con imágenes para compartir o guardar.</p>
                         </header>
 
                         <main className="flex-1 min-h-0 overflow-hidden grid grid-cols-1 lg:grid-cols-[390px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] gap-0">
@@ -389,12 +389,12 @@
                                                 <div className="flex gap-2"><button type="submit" disabled={geminiBusy || !geminiApiKey.trim()} className="rounded-lg bg-violet-700 px-4 py-2 font-semibold text-white disabled:opacity-50">{geminiBusy ? 'Conectando…' : 'Conectar'}</button><button type="button" onClick={() => { setGeminiOpen(false); setGeminiApiKey(''); setGeminiError(''); }} className="px-3 text-slate-300">Cancelar</button></div>
                                             </form>
                                         ) : <div className="rounded-xl border border-violet-600 bg-violet-950/40 p-3 text-left">
-                                            <p className="mb-3 text-sm text-violet-100">Para transcribir un vídeo, conecta primero tu clave de Google Gemini.</p>
+                                            <p className="mb-3 text-sm text-violet-100">Para empezar a transcribir, conecta primero tu clave de Google Gemini.</p>
                                             <button onClick={() => setGeminiOpen(true)} className="w-full rounded-lg bg-violet-700 px-3 py-2.5 font-semibold text-white hover:bg-violet-600">✦ Conectar Gemini</button>
                                         </div>}
                                         {geminiError && <p className="mt-1 text-xs text-red-300" role="alert">{geminiError}</p>}
                                     </div>
-                                    <input type="url" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} disabled={loading} aria-label="Enlace del vídeo" placeholder="Enlace del vídeo de YouTube o TikTok" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 text-sm text-slate-100 placeholder-slate-500 text-left mb-3 disabled:opacity-70" />
+                                    <input type="url" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} disabled={loading} aria-label="Enlace de YouTube o TikTok" placeholder="Pega un enlace de YouTube o TikTok" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 text-sm text-slate-100 placeholder-slate-500 text-left mb-3 disabled:opacity-70" />
                                     {urlTranscribing ? (
                                         <div className="rounded-xl border border-cyan-900/60 bg-slate-900/60 p-3 text-left" aria-live="polite">
                                             <div className="flex justify-between gap-3 text-xs text-cyan-300 mb-2">
@@ -412,8 +412,7 @@
                                         </div>
                                     )}
                                 </div>
-                                {(geminiConnected || ownerGeminiReady) && <div className="flex items-center justify-end gap-2 text-xs text-emerald-300 shrink-0" aria-label="Gemini conectado"><span>✦ Gemini conectado</span>{geminiConnected && <button onClick={disconnectGemini} className="text-slate-400 underline hover:text-white">Desconectar</button>}</div>}
-                                <div className={githubConnected ? "rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-xs shrink-0" : "flex justify-center text-xs shrink-0"}>
+                                <div className={githubConnected ? "rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-xs shrink-0" : "flex flex-col items-center gap-1 text-xs shrink-0"}>
                                     {githubConnected ? (
                                         <div className="flex items-center justify-between gap-2"><span className="flex items-center gap-2 text-emerald-300 truncate"><GithubIcon /> GitHub conectado: {githubLogin}</span><button onClick={disconnectGithub} className="text-slate-400 hover:text-white shrink-0">Desconectar</button></div>
                                     ) : githubConfigured ? (
@@ -431,6 +430,7 @@
                                             <button onClick={() => loadRepositories(githubSession)} disabled={repositoryLoading} className="hover:underline disabled:opacity-50">Actualizar lista</button>
                                         </div>
                                     </div>}
+                                    {(geminiConnected || ownerGeminiReady) && <div className="flex items-center justify-end gap-2 text-[11px] text-emerald-300" aria-label="Gemini conectado"><span>✦ Gemini conectado</span>{geminiConnected && <button onClick={disconnectGemini} className="text-slate-400 underline hover:text-white">Desconectar</button>}</div>}
                                 </div>
                             </section>
 
