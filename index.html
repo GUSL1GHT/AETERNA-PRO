@@ -21,7 +21,7 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useEffect, useState } = React;
+        const { useEffect, useRef, useState } = React;
 
         const BACKEND_URL = ["localhost", "127.0.0.1"].includes(location.hostname)
             ? "http://127.0.0.1:3000"
@@ -38,6 +38,7 @@
             const [guideView, setGuideView] = useState(false);
             const [guideLoading, setGuideLoading] = useState(false);
             const [guideError, setGuideError] = useState('');
+            const contentRef = useRef(null);
             const [activeMode, setActiveMode] = useState('audio');
             const [visualVerification, setVisualVerification] = useState(false);
             const [sourceUrl, setSourceUrl] = useState("");
@@ -66,6 +67,10 @@
             const [githubInstallUrl, setGithubInstallUrl] = useState('');
             const [repositoryLoading, setRepositoryLoading] = useState(false);
             const [installPrompt, setInstallPrompt] = useState(null);
+
+            useEffect(() => {
+                if (contentRef.current) contentRef.current.scrollTop = 0;
+            }, [guideView, guide, result]);
 
             useEffect(() => {
                 if (!geminiSession) return;
@@ -497,7 +502,7 @@
                                         {!guideView && resultMeta?.mode === 'visual' && <p className="text-xs text-sky-300">Texto leído de las imágenes, en su idioma original. Las marcas de tiempo son aproximadas; revisa los fragmentos [ilegible].</p>}
                                         {!guideView && resultMeta?.mode !== 'visual' && resultMeta?.platform === 'YouTube' && <p className="text-xs text-sky-300">Si YouTube reproduce un doblaje automático, la transcripción se traduce al español desde el audio disponible y puede no coincidir palabra por palabra con ese doblaje.</p>}
                                         {!guideView && resultMeta?.mode !== 'visual' && !visualVerification && resultMeta?.sourceUrl && <p className="text-xs text-amber-300">Solo audio disponible: revisa los nombres de programas con el vídeo original.</p>}
-                                        <div className="flex-1 min-h-0 bg-slate-950 p-3 md:p-4 rounded-2xl border border-slate-700 text-slate-100 text-sm whitespace-pre-wrap leading-relaxed overflow-y-auto shadow-inner" role="region" aria-label={guideView ? 'Guía paso a paso' : 'Texto transcrito'} tabIndex="0">
+                                        <div ref={contentRef} className="flex-1 min-h-0 bg-slate-950 p-3 md:p-4 rounded-2xl border border-slate-700 text-slate-100 text-sm whitespace-pre-wrap leading-relaxed overflow-y-auto shadow-inner" role="region" aria-label={guideView ? 'Guía paso a paso' : 'Texto transcrito'} tabIndex="0">
                                             {guideView ? guide : result}
                                         </div>
 
