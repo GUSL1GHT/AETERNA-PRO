@@ -351,7 +351,7 @@
                     await navigator.clipboard.writeText(result);
                     alert('Transcripción copiada. Ya puedes pegarla donde quieras compartirla.');
                 } catch (_) {
-                    setErrorMsg('No se pudo compartir ni copiar. Usa el botón TXT para descargar la transcripción.');
+                    setErrorMsg('No se pudo compartir. Usa «Descargar archivo» para guardar la transcripción.');
                 }
             };
 
@@ -464,8 +464,8 @@
                                         </div>
 
                                         <div className="shrink-0 grid grid-cols-2 gap-2 md:gap-3">
-                                            <button onClick={downloadTextFile} className="bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-xs font-bold border border-slate-700 transition-all">TXT</button>
-                                            <button onClick={shareTranscript} className="bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-xs font-bold border border-slate-700 transition-all">Compartir</button>
+                                            <button onClick={downloadTextFile} className="bg-sky-800 hover:bg-sky-700 py-3 rounded-xl text-xs md:text-sm font-bold text-white border border-sky-600 transition-all">Descargar archivo</button>
+                                            <button onClick={shareTranscript} className="bg-violet-800 hover:bg-violet-700 py-3 rounded-xl text-xs md:text-sm font-bold text-white border border-violet-600 transition-all">Compartir</button>
                                         </div>
                                     </>
                                 )}

@@ -18,7 +18,7 @@ Tras el despliegue, conectar primero la clave propia de Gemini y después pegar 
 
 ## Comprobación
 
-1. Sin conectar, aparece primero **Conectar Gemini** con una explicación; después el enlace y **Transcribir vídeo**. **Conectar GitHub** queda al final. El resultado ofrece **TXT** y **Compartir**. No aparece la subida manual.
+1. Sin conectar, aparece primero **Conectar Gemini** con una explicación; después el enlace y **Transcribir vídeo**. **Conectar GitHub** queda al final. El resultado ofrece **Descargar archivo** y **Compartir**. No aparece la subida manual.
 2. Conectar la cuenta y comprobar que aparecen sus repositorios autorizados; seleccionar uno.
 3. Pulsar **Transcribir vídeo** sin marcar la casilla de guardado y comprobar que no se crea un archivo en GitHub. Marcar **Guardar esta transcripción en GitHub**, transcribir otro enlace público y comprobar que se crea un Markdown en `transcripts/AAAA/MM/` del repositorio elegido.
 4. Desconectar y comprobar que desaparecen las acciones de guardado. Una llamada de guardado sin sesión debe responder `401`.
