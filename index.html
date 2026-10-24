@@ -503,7 +503,7 @@
                                         {!guideView && resultMeta?.mode !== 'visual' && resultMeta?.platform === 'YouTube' && <p className="text-xs text-sky-300">Si YouTube reproduce un doblaje automático, la transcripción se traduce al español desde el audio disponible y puede no coincidir palabra por palabra con ese doblaje.</p>}
                                         {!guideView && resultMeta?.mode !== 'visual' && !visualVerification && resultMeta?.sourceUrl && <p className="text-xs text-amber-300">Solo audio disponible: revisa los nombres de programas con el vídeo original.</p>}
                                         <div ref={contentRef} className="flex-1 min-h-0 bg-slate-950 p-3 md:p-4 rounded-2xl border border-slate-700 text-slate-100 text-sm whitespace-pre-wrap leading-relaxed overflow-y-auto shadow-inner" role="region" aria-label={guideView ? 'Guía paso a paso' : 'Texto transcrito'} tabIndex="0">
-                                            {guideView ? guide : result}
+                                            {guideView ? guide.split(/(https:\/\/[^\s]+)/g).map((part, index) => /^https:\/\//.test(part) ? <a key={index} href={part} target="_blank" rel="noopener noreferrer" className="text-cyan-300 underline break-all hover:text-cyan-100">{part}</a> : part) : result}
                                         </div>
 
                                         <div className="shrink-0 grid grid-cols-2 gap-2 md:gap-3">
