@@ -58,6 +58,7 @@
             const [githubConfigured, setGithubConfigured] = useState(false);
             const [githubRepositories, setGithubRepositories] = useState([]);
             const [githubRepository, setGithubRepository] = useState(() => localStorage.getItem('aeterna-github-repository') || '');
+            const [saveOnTranscribe, setSaveOnTranscribe] = useState(false);
             const [githubInstallUrl, setGithubInstallUrl] = useState('');
             const [repositoryLoading, setRepositoryLoading] = useState(false);
             const [installPrompt, setInstallPrompt] = useState(null);
@@ -380,11 +381,7 @@
                             <section className={`${hasOutput ? 'hidden lg:flex' : 'flex'} min-h-0 overflow-y-auto lg:border-r border-slate-800 p-2 md:p-4 flex-col gap-3`}>
                                 <div className="bg-slate-950/70 p-3 rounded-2xl border border-cyan-900/60 text-center shrink-0">
                                     <div className="mb-3 text-sm">
-                                        {geminiConnected || ownerGeminiReady ? (
-                                            <div className="flex items-center justify-between gap-2 rounded-xl border border-emerald-800 bg-emerald-950/40 px-3 py-2 text-emerald-200">
-                                                <span>✦ Gemini conectado</span>{geminiConnected && <button onClick={disconnectGemini} className="text-xs underline">Desconectar</button>}
-                                            </div>
-                                        ) : geminiOpen ? (
+                                        {geminiConnected || ownerGeminiReady ? null : geminiOpen ? (
                                             <form onSubmit={connectGemini} className="rounded-xl border border-violet-700 bg-slate-900 p-3 text-left space-y-2">
                                                 <div className="font-semibold text-violet-200">Conectar Gemini</div>
                                                 <p className="text-xs text-slate-300">Usa tu propia clave para transcribir. <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-cyan-300 underline">Crear clave gratis</a></p>
@@ -411,12 +408,11 @@
                                         </div>
                                     ) : (
                                         <div className="grid grid-cols-1 gap-2">
-                                            <button onClick={() => handleUrlTranscribe(false)} disabled={loading || !sourceUrl.trim() || !canTranscribe} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">Transcribir URL</button>
-                                            <button onClick={() => handleUrlTranscribe(false, 'visual')} disabled={loading || !sourceUrl.trim() || !canTranscribe} className="bg-violet-700 hover:bg-violet-600 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">Extraer texto visible del vídeo</button>
-                                            {githubConnected && githubRepository && <button onClick={() => handleUrlTranscribe(true)} disabled={loading || saving || !sourceUrl.trim() || !canTranscribe} className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">Transcribir y guardar en GitHub</button>}
+                                            <button onClick={() => handleUrlTranscribe(!!(githubConnected && githubRepository && saveOnTranscribe))} disabled={loading || !sourceUrl.trim() || !canTranscribe} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">{saveOnTranscribe && githubConnected && githubRepository ? 'Transcribir y guardar' : 'Transcribir vídeo'}</button>
                                         </div>
                                     )}
                                 </div>
+                                {(geminiConnected || ownerGeminiReady) && <div className="flex items-center justify-end gap-2 text-xs text-emerald-300 shrink-0" aria-label="Gemini conectado"><span>✦ Gemini conectado</span>{geminiConnected && <button onClick={disconnectGemini} className="text-slate-400 underline hover:text-white">Desconectar</button>}</div>}
                                 <div className={githubConnected ? "rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-xs shrink-0" : "flex justify-center text-xs shrink-0"}>
                                     {githubConnected ? (
                                         <div className="flex items-center justify-between gap-2"><span className="flex items-center gap-2 text-emerald-300 truncate"><GithubIcon /> GitHub conectado: {githubLogin}</span><button onClick={disconnectGithub} className="text-slate-400 hover:text-white shrink-0">Desconectar</button></div>
@@ -429,6 +425,7 @@
                                             <option value="">{repositoryLoading ? 'Cargando repositorios...' : 'Selecciona un repositorio'}</option>
                                             {githubRepositories.map(repo => <option key={repo.fullName} value={repo.fullName}>{repo.fullName}{repo.private ? ' · privado' : ''}</option>)}
                                         </select>
+                                        {githubRepository && <label className="flex items-center gap-2 text-slate-300"><input type="checkbox" checked={saveOnTranscribe} onChange={(e) => setSaveOnTranscribe(e.target.checked)} className="accent-emerald-500" />Guardar esta transcripción en GitHub</label>}
                                         <div className="flex justify-between gap-2 text-cyan-300">
                                             {githubInstallUrl && <a href={githubInstallUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">Añadir repositorio</a>}
                                             <button onClick={() => loadRepositories(githubSession)} disabled={repositoryLoading} className="hover:underline disabled:opacity-50">Actualizar lista</button>

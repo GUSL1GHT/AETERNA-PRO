@@ -628,12 +628,12 @@ const downloadMediaFromUrl = async (sourceUrl) => {
     await fs.promises.rm(tempDir, { recursive: true, force: true });
     const details = stringifyError(error).toLowerCase();
     if (details.includes('impersonat') || details.includes('extract') || details.includes('unsupported url')) {
-      throw new Error('La plataforma ha rechazado la descarga del enlace. Puedes subir el archivo manualmente.');
+      throw new Error('La plataforma ha rechazado este enlace. Comprueba que la publicación sea pública e inténtalo de nuevo.');
     }
     if (details.includes('file is larger') || details.includes('max-filesize')) {
       throw new Error('El archivo supera el límite de 100 MB.');
     }
-    throw new Error('No se pudo descargar este enlace. Comprueba que sea público o sube el archivo manualmente.');
+    throw new Error('No se pudo abrir este enlace. Comprueba que sea público e inténtalo de nuevo.');
   }
 };
 
@@ -648,7 +648,7 @@ Reglas obligatorias:
 - No conviertas la transcripción en una explicación.
 - Mantén el orden exacto del discurso.
 - Conserva nombres propios, marcas, herramientas, menús, programas y términos técnicos tal como se oigan.
-- Si el archivo es vídeo, lee el texto visible para verificar la escritura de nombres propios mencionados en el audio. No añadas nombres que solo aparezcan en pantalla si no se pronuncian.
+- Si el archivo es vídeo, lee también cada pantalla o diapositiva con información escrita. Añade ese texto en su orden de aparición, con la marca aproximada [mm:ss], una sola vez por pantalla. Ignora subtítulos automáticos y elementos de la interfaz. Si no es legible, escribe [ilegible]; nunca lo inventes.
 - No sustituyas un nombre por otro programa parecido ni completes palabras a partir de conocimientos externos.
 - Si no puedes distinguir una palabra o un nombre, escribe [inaudible] en ese punto; no adivines.
 - No añadas títulos, introducciones, conclusiones, notas ni comentarios.
@@ -722,6 +722,28 @@ const tikTokPhotoMatch = (value) => {
   const url = new URL(value);
   if (!(url.hostname === 'tiktok.com' || url.hostname.endsWith('.tiktok.com'))) return null;
   return /^\/@[\w.-]+\/photo\/(\d+)(?:\/)?$/.exec(url.pathname);
+};
+
+const resolveTikTokShortUrl = async (sourceUrl) => {
+  const hostname = new URL(sourceUrl).hostname.toLowerCase();
+  if (!['vm.tiktok.com', 'vt.tiktok.com'].includes(hostname)) return sourceUrl;
+  let response = await fetch(sourceUrl, {
+    method: 'HEAD',
+    headers: { 'User-Agent': 'Mozilla/5.0' },
+    signal: AbortSignal.timeout(15000)
+  });
+  if (response.status === 405 || response.status === 501) {
+    response = await fetch(sourceUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      signal: AbortSignal.timeout(15000)
+    });
+  }
+  if (!response.ok) throw new Error('No se ha podido abrir este enlace corto de TikTok.');
+  const finalUrl = new URL(response.url);
+  if (!['tiktok.com', 'www.tiktok.com', 'm.tiktok.com'].includes(finalUrl.hostname.toLowerCase())) {
+    throw new Error('El enlace corto no lleva a una publicación de TikTok válida.');
+  }
+  return finalUrl.href;
 };
 
 const fetchTikTokPhotoImages = async (sourceUrl) => {
@@ -950,11 +972,9 @@ app.post('/api/transcribe-url', requireGeminiSession, async (req, res) => {
       return res.status(400).json({ success: false, error: 'La URL no es válida.' });
     }
 
-    if (tikTokPhotoMatch(sourceUrl)) {
-      if (mode !== 'visual') {
-        return res.status(400).json({ success: false, error: 'Este enlace es una publicación de fotos. Pulsa «Leer texto de las imágenes».' });
-      }
-      const result = await readTikTokPhotoText(req.geminiAi, sourceUrl, req.geminiModels);
+    const resolvedUrl = await resolveTikTokShortUrl(sourceUrl);
+    if (tikTokPhotoMatch(resolvedUrl)) {
+      const result = await readTikTokPhotoText(req.geminiAi, resolvedUrl, req.geminiModels);
       if (!result.transcription) {
         return res.status(422).json({ success: false, error: 'No se ha encontrado texto visual legible en estas imágenes.' });
       }
@@ -964,14 +984,14 @@ app.post('/api/transcribe-url', requireGeminiSession, async (req, res) => {
         fileName: 'Fotos de TikTok',
         sourceUrl,
         platform: 'TikTok',
-        mode,
+        mode: 'visual',
         visualVerification: true,
         suggestedTitle: fallbackTitleFromTranscript(result.transcription),
         transcription: result.transcription
       });
     }
 
-    if (isYouTubeUrl(sourceUrl)) {
+    if (isYouTubeUrl(resolvedUrl)) {
       const canonicalUrl = canonicalYouTubeUrl(sourceUrl);
       if (!canonicalUrl) return res.status(400).json({ success: false, error: 'No se ha encontrado un identificador de vídeo de YouTube válido.' });
       const result = await generateTranscription(req.geminiAi, { fileData: { fileUri: canonicalUrl, mimeType: 'video/*' } }, mode, null, req.geminiModels);
@@ -991,7 +1011,7 @@ app.post('/api/transcribe-url', requireGeminiSession, async (req, res) => {
       });
     }
 
-    const downloaded = await downloadMediaFromUrl(sourceUrl);
+    const downloaded = await downloadMediaFromUrl(resolvedUrl);
     tempDir = downloaded.tempDir;
 
     if (mode === 'visual' && !downloaded.mimeType.startsWith('video/')) {
