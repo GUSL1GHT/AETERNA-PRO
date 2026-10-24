@@ -401,6 +401,13 @@
                 URL.revokeObjectURL(url);
             };
 
+            const renderGuideText = (text) => text.split(/(https:\/\/[^\s]+)/g).map((part, index, pieces) => {
+                if (!/^https:\/\//.test(part)) return part;
+                const line = (pieces[index - 1] || '').split('\n').pop();
+                const label = /Vídeo original:/i.test(line) ? 'Ver vídeo original' : /descarg|instala/i.test(line) ? 'Abrir página de descarga' : 'Abrir recurso';
+                return <a key={index} href={part} title={part} aria-label={`${label}: ${part}`} target="_blank" rel="noopener noreferrer" className="inline-flex max-w-full rounded-md bg-cyan-900/50 px-2 py-0.5 font-semibold text-cyan-200 underline underline-offset-2 hover:bg-cyan-800/70">{label} ↗</a>;
+            });
+
             const hasOutput = !!result || !!errorMsg || !!saveMsg;
 
             return (
@@ -503,7 +510,7 @@
                                         {!guideView && resultMeta?.mode !== 'visual' && resultMeta?.platform === 'YouTube' && <p className="text-xs text-sky-300">Si YouTube reproduce un doblaje automático, la transcripción se traduce al español desde el audio disponible y puede no coincidir palabra por palabra con ese doblaje.</p>}
                                         {!guideView && resultMeta?.mode !== 'visual' && !visualVerification && resultMeta?.sourceUrl && <p className="text-xs text-amber-300">Solo audio disponible: revisa los nombres de programas con el vídeo original.</p>}
                                         <div ref={contentRef} className="flex-1 min-h-0 bg-slate-950 p-3 md:p-4 rounded-2xl border border-slate-700 text-slate-100 text-sm whitespace-pre-wrap leading-relaxed overflow-y-auto shadow-inner" role="region" aria-label={guideView ? 'Guía paso a paso' : 'Texto transcrito'} tabIndex="0">
-                                            {guideView ? guide.split(/(https:\/\/[^\s]+)/g).map((part, index) => /^https:\/\//.test(part) ? <a key={index} href={part} target="_blank" rel="noopener noreferrer" className="text-cyan-300 underline break-all hover:text-cyan-100">{part}</a> : part) : result}
+                                            {guideView ? renderGuideText(guide) : result}
                                         </div>
 
                                         <div className="shrink-0 grid grid-cols-2 gap-2 md:gap-3">
