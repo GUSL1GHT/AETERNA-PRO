@@ -374,7 +374,7 @@
                         <header className="shrink-0 px-3 py-2 md:px-4 md:py-3 border-b border-slate-800 text-center">
                             <h1 className="text-2xl md:text-4xl font-light text-white tracking-[0.24em] uppercase leading-none">AETERNA</h1>
                             <p className="text-[8px] md:text-[9px] text-slate-500 tracking-[0.35em] uppercase mt-1">Digital Synthesis</p>
-                            <p className="hidden sm:block text-xs text-slate-400 mt-2">Transcribe vídeos y publicaciones con imágenes para compartir o guardar.</p>
+                            <p className="text-[11px] sm:text-xs leading-snug text-slate-400 mt-2">Transcribe vídeos y publicaciones con imágenes para compartir o guardar.</p>
                         </header>
 
                         <main className="flex-1 min-h-0 overflow-hidden grid grid-cols-1 lg:grid-cols-[390px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] gap-0">
@@ -435,7 +435,7 @@
                             </section>
 
                             <section className={`${hasOutput ? 'flex' : 'hidden lg:flex'} min-h-0 overflow-hidden p-2 md:p-4 flex-col gap-2 md:gap-3`}>
-                                {hasOutput && <button onClick={resetOutput} className="lg:hidden self-start text-cyan-400 text-xs font-bold px-2 py-1">← Volver al formulario</button>}
+                                {hasOutput && <button onClick={resetOutput} className="lg:hidden self-start inline-flex items-center rounded-xl border border-cyan-700 bg-slate-800 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-slate-700 active:bg-slate-600">← {result ? 'Transcribir otro vídeo' : 'Volver y reintentar'}</button>}
                                 {errorMsg && (
                                     <div className="shrink-0 p-3 bg-red-950/40 border border-red-900/60 rounded-2xl text-red-200 text-xs font-mono whitespace-pre-wrap overflow-y-auto max-h-[42dvh] md:max-h-[35dvh]">
                                         <div className="font-bold uppercase tracking-wider text-red-400 mb-1">Error:</div>
