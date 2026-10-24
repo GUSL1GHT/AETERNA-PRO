@@ -379,7 +379,6 @@
                         <main className="flex-1 min-h-0 overflow-hidden grid grid-cols-1 lg:grid-cols-[390px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] gap-0">
                             <section className={`${hasOutput ? 'hidden lg:flex' : 'flex'} min-h-0 overflow-y-auto lg:border-r border-slate-800 p-2 md:p-4 flex-col gap-3`}>
                                 <div className="bg-slate-950/70 p-3 rounded-2xl border border-cyan-900/60 text-center shrink-0">
-                                    <input type="url" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} disabled={loading} aria-label="Enlace del vídeo" placeholder="Enlace del vídeo de YouTube o TikTok" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 text-sm text-slate-100 placeholder-slate-500 text-left mb-3 disabled:opacity-70" />
                                     <div className="mb-3 text-sm">
                                         {geminiConnected || ownerGeminiReady ? (
                                             <div className="flex items-center justify-between gap-2 rounded-xl border border-emerald-800 bg-emerald-950/40 px-3 py-2 text-emerald-200">
@@ -392,9 +391,13 @@
                                                 <input type="password" value={geminiApiKey} onChange={(e) => setGeminiApiKey(e.target.value)} autoComplete="off" aria-label="Clave de Gemini" placeholder="Pega aquí tu clave" className="w-full rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-white" />
                                                 <div className="flex gap-2"><button type="submit" disabled={geminiBusy || !geminiApiKey.trim()} className="rounded-lg bg-violet-700 px-4 py-2 font-semibold text-white disabled:opacity-50">{geminiBusy ? 'Conectando…' : 'Conectar'}</button><button type="button" onClick={() => { setGeminiOpen(false); setGeminiApiKey(''); setGeminiError(''); }} className="px-3 text-slate-300">Cancelar</button></div>
                                             </form>
-                                        ) : <button onClick={() => setGeminiOpen(true)} className="w-full rounded-xl border border-violet-600 bg-violet-950/40 px-3 py-2 font-semibold text-violet-100 hover:bg-violet-900/50">✦ Conectar Gemini</button>}
+                                        ) : <div className="rounded-xl border border-violet-600 bg-violet-950/40 p-3 text-left">
+                                            <p className="mb-3 text-sm text-violet-100">Para transcribir un vídeo, conecta primero tu clave de Google Gemini.</p>
+                                            <button onClick={() => setGeminiOpen(true)} className="w-full rounded-lg bg-violet-700 px-3 py-2.5 font-semibold text-white hover:bg-violet-600">✦ Conectar Gemini</button>
+                                        </div>}
                                         {geminiError && <p className="mt-1 text-xs text-red-300" role="alert">{geminiError}</p>}
                                     </div>
+                                    <input type="url" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} disabled={loading} aria-label="Enlace del vídeo" placeholder="Enlace del vídeo de YouTube o TikTok" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 text-sm text-slate-100 placeholder-slate-500 text-left mb-3 disabled:opacity-70" />
                                     {urlTranscribing ? (
                                         <div className="rounded-xl border border-cyan-900/60 bg-slate-900/60 p-3 text-left" aria-live="polite">
                                             <div className="flex justify-between gap-3 text-xs text-cyan-300 mb-2">
