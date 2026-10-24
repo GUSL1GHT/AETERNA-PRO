@@ -1065,12 +1065,15 @@ app.post('/api/create-guide', requireGeminiSession, async (req, res) => {
 
 Reglas:
 - Si el contenido no explica un procedimiento con pasos suficientes, responde exactamente [SIN_PASOS].
+- Crea un tutorial para actuar, no un resumen del vídeo: omite definiciones, cifras y contexto que no sean necesarios para seguir el procedimiento.
+- Usa un título concreto y breve. En "Antes de empezar" incluye como máximo cuatro requisitos. En "Pasos" incluye como máximo diez pasos, cada uno con una acción clara y hasta tres frases.
 - Usa solo acciones, requisitos, nombres, comandos y enlaces que consten expresamente en la transcripción. No inventes pasos de instalación, opciones, versiones, URLs ni resultados.
-- Cuando falte un paso necesario, escribe "No explicado en el vídeo; verificar antes de continuar". No rellenes huecos con conocimiento externo.
+- Cuando falte un comando o paso necesario, escribe "No explicado en el vídeo; verificar antes de continuar". No presentes "pega el comando" como paso ejecutable si la transcripción no contiene ese comando.
+- Evita copiar párrafos extensos del vídeo. Resume las instrucciones habladas sin añadir funciones nuevas; conserva literalmente solo comandos breves, nombres y direcciones que sí aparezcan.
 - Distingue claramente lo que el vídeo afirma de lo que queda por comprobar. No afirmes que has ejecutado o verificado ningún paso.
 - Si aparecen marcas de tiempo, añádelas solo a los pasos para los que exista una marca en la transcripción. No las inventes.
 - Incluye enlaces directos únicamente si la URL completa figura literalmente en la transcripción. Si se menciona un programa sin URL, indica "Enlace no incluido en el vídeo".
-- Formato de texto claro, sin marcas Markdown: título, "Antes de empezar", "Pasos" numerados, "Enlaces mencionados" y "Puntos a verificar". No reproduzcas la transcripción completa.
+- Formato de texto claro, sin marcas Markdown: título, "Antes de empezar", "Pasos" numerados, "Enlaces mencionados" y hasta cinco "Puntos a verificar". No reproduzcas la transcripción completa.
 
 Título sugerido: ${title || 'Tutorial del vídeo'}
 Transcripción:
@@ -1084,7 +1087,7 @@ ${transcription}`;
         const response = await req.geminiAi.models.generateContent({
           model,
           contents: createUserContent(prompt),
-          config: { temperature: 0, maxOutputTokens: 8192 }
+          config: { temperature: 0, maxOutputTokens: 4096 }
         });
         const generated = cleanText(response.text);
         if (!generated || generated === '[SIN_PASOS]') {
