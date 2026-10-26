@@ -59,7 +59,7 @@
             const [geminiError, setGeminiError] = useState('');
             const [githubSession, setGithubSession] = useState(() => localStorage.getItem('aeterna-github-session') || '');
             const [githubConnected, setGithubConnected] = useState(false);
-            const [githubChecking, setGithubChecking] = useState(() => !!localStorage.getItem('aeterna-github-session') || location.hash.includes('github_session='));
+            const [githubChecking, setGithubChecking] = useState(() => !!localStorage.getItem('aeterna-github-session') || !!localStorage.getItem('aeterna-owner-github') || location.hash.includes('github_session='));
             const [githubLogin, setGithubLogin] = useState('');
             const ownerGeminiReady = githubConnected && githubLogin.toLowerCase() === 'gusl1ght';
             const canTranscribe = geminiConnected || ownerGeminiReady;
@@ -188,12 +188,31 @@
                         history.replaceState(null, '', location.pathname + location.search);
                     }
                     try {
-                        const configResponse = await fetch(`${BACKEND_URL}/api/github-auth/config`);
+                        const getWithRetry = async (url, options) => {
+                            let lastError;
+                            for (let attempt = 0; attempt < 4; attempt++) {
+                                try {
+                                    const response = await fetch(url, options);
+                                    if (response.ok || response.status === 401) return response;
+                                    throw new Error(`Servidor temporalmente no disponible (${response.status})`);
+                                } catch (error) {
+                                    lastError = error;
+                                    if (attempt < 3) await new Promise(resolve => setTimeout(resolve, [1500, 3500, 7000][attempt]));
+                                }
+                            }
+                            throw lastError;
+                        };
+                        const configResponse = await getWithRetry(`${BACKEND_URL}/api/github-auth/config`);
                         const config = await configResponse.json();
                         setGithubConfigured(!!config.configured);
                         setGithubInstallUrl(config.installUrl || '');
+                        if (!session && config.configured && localStorage.getItem('aeterna-owner-github') === 'yes' && !sessionStorage.getItem('aeterna-github-reconnect-attempted')) {
+                            sessionStorage.setItem('aeterna-github-reconnect-attempted', 'yes');
+                            location.replace(`${BACKEND_URL}/api/github-auth/start`);
+                            return;
+                        }
                         if (session && config.configured) {
-                            const response = await fetch(`${BACKEND_URL}/api/github-auth/status`, { headers: { Authorization: `Bearer ${session}` } });
+                            const response = await getWithRetry(`${BACKEND_URL}/api/github-auth/status`, { headers: { Authorization: `Bearer ${session}` } });
                             session = adoptGithubSession(response, session);
                             const data = await response.json();
                             if (response.ok && data.connected) {
@@ -201,6 +220,7 @@
                                 sessionStorage.removeItem('aeterna-github-session');
                                 setGithubConnected(true);
                                 setGithubLogin(data.login || '');
+                                if ((data.login || '').toLowerCase() === 'gusl1ght') localStorage.setItem('aeterna-owner-github', 'yes');
                                 await loadRepositories(session);
                             } else if (response.status === 401) {
                                 localStorage.removeItem('aeterna-github-session');
@@ -219,6 +239,7 @@
                     try { await fetch(`${BACKEND_URL}/api/github-auth/logout`, { method: 'POST', headers: { Authorization: `Bearer ${githubSession}` } }); } catch (_) {}
                 }
                 localStorage.removeItem('aeterna-github-session');
+                localStorage.removeItem('aeterna-owner-github');
                 localStorage.removeItem('aeterna-github-repository');
                 sessionStorage.removeItem('aeterna-github-session');
                 setGithubSession('');
@@ -456,7 +477,7 @@
                                                 <div className="flex gap-2"><button type="submit" disabled={geminiBusy || !geminiApiKey.trim()} className="rounded-lg bg-violet-700 px-4 py-2 font-semibold text-white disabled:opacity-50">{geminiBusy ? 'Conectando…' : 'Conectar'}</button><button type="button" onClick={() => { setGeminiOpen(false); setGeminiApiKey(''); setGeminiError(''); }} className="px-3 text-slate-300">Cancelar</button></div>
                                             </form>
                                         ) : <div className="rounded-xl border border-violet-600 bg-violet-950/40 p-3 text-left">
-                                            <p className="mb-3 text-sm text-violet-100">Para empezar a transcribir, conecta primero tu clave de Google Gemini.</p>
+                                            <p className="mb-3 text-sm text-violet-100">Conecta Gemini para transcribir. Si usas la cuenta GUSL1GHT, conecta GitHub abajo para recuperar Gemini sin volver a poner la clave.</p>
                                             <button onClick={() => setGeminiOpen(true)} className="w-full rounded-lg bg-violet-700 px-3 py-2.5 font-semibold text-white hover:bg-violet-600">✦ Conectar Gemini</button>
                                         </div>}
                                         {geminiError && <p className="mt-1 text-xs text-red-300" role="alert">{geminiError}</p>}
