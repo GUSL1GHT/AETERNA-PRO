@@ -4,7 +4,7 @@ const PREFIX = 'aet1.';
 const MAX_TOKEN_LENGTH = 8192;
 
 const sessionKey = () => {
-  const secret = process.env.GITHUB_APP_CLIENT_SECRET;
+  const secret = process.env.SESSION_ENCRYPTION_SECRET || process.env.GITHUB_APP_CLIENT_SECRET || process.env.GOOGLE_DRIVE_CLIENT_SECRET;
   if (!secret) return null;
   return crypto.hkdfSync('sha256', Buffer.from(secret), Buffer.from('aeterna-session-v1'), Buffer.from('browser-session'), 32);
 };

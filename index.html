@@ -67,6 +67,12 @@
             const [githubRepositories, setGithubRepositories] = useState([]);
             const [githubRepository, setGithubRepository] = useState(() => localStorage.getItem('aeterna-github-repository') || '');
             const [saveOnTranscribe, setSaveOnTranscribe] = useState(false);
+            const [driveSession, setDriveSession] = useState(() => localStorage.getItem('aeterna-drive-session') || '');
+            const [driveConnected, setDriveConnected] = useState(false);
+            const [driveChecking, setDriveChecking] = useState(() => !!localStorage.getItem('aeterna-drive-session') || location.hash.includes('drive_session='));
+            const [driveConfigured, setDriveConfigured] = useState(false);
+            const [driveName, setDriveName] = useState('');
+            const [saveToDrive, setSaveToDrive] = useState(false);
             const [githubInstallUrl, setGithubInstallUrl] = useState('');
             const [repositoryLoading, setRepositoryLoading] = useState(false);
             const [installPrompt, setInstallPrompt] = useState(null);
@@ -151,6 +157,55 @@
                     setGithubSession(renewed);
                 }
                 return renewed || previous;
+            };
+
+            const adoptDriveSession = (response, previous) => {
+                const renewed = response.headers.get('X-Aeterna-Drive-Session');
+                if (renewed) {
+                    localStorage.setItem('aeterna-drive-session', renewed);
+                    setDriveSession(renewed);
+                }
+                return renewed || previous;
+            };
+
+            useEffect(() => {
+                const loadDrive = async () => {
+                    let session = localStorage.getItem('aeterna-drive-session') || '';
+                    const hash = new URLSearchParams(location.hash.slice(1));
+                    if (hash.has('drive_session')) {
+                        session = hash.get('drive_session') || '';
+                        localStorage.setItem('aeterna-drive-session', session);
+                        setDriveSession(session);
+                        history.replaceState(null, '', location.pathname + location.search);
+                    }
+                    try {
+                        const configResponse = await fetch(`${BACKEND_URL}/api/drive-auth/config`);
+                        if (!configResponse.ok) return;
+                        const config = await configResponse.json();
+                        setDriveConfigured(!!config.configured);
+                        if (session && config.configured) {
+                            const response = await fetch(`${BACKEND_URL}/api/drive-auth/status`, { headers: { Authorization: `Bearer ${session}` } });
+                            session = adoptDriveSession(response, session);
+                            const data = await response.json();
+                            if (response.ok && data.connected) {
+                                setDriveConnected(true);
+                                setDriveName(data.displayName || 'Google Drive');
+                            } else if (response.status === 401) {
+                                localStorage.removeItem('aeterna-drive-session');
+                                setDriveSession('');
+                            }
+                        }
+                    } catch (_) {} finally { setDriveChecking(false); }
+                };
+                loadDrive();
+            }, []);
+
+            const disconnectDrive = () => {
+                localStorage.removeItem('aeterna-drive-session');
+                setDriveSession('');
+                setDriveConnected(false);
+                setDriveName('');
+                setSaveToDrive(false);
             };
 
             const loadRepositories = async (session) => {
@@ -327,7 +382,23 @@
                 return data;
             };
 
-            const handleUrlTranscribe = async (autoSave = false, mode = 'audio') => {
+            const saveTranscriptToDrive = async (transcription, meta = {}) => {
+                const response = await fetch(`${BACKEND_URL}/api/save-transcript-to-drive`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${driveSession}` },
+                    body: JSON.stringify({
+                        title: meta.title || title || 'Transcripción AETERNA',
+                        transcription,
+                        sourceUrl: meta.sourceUrl || resultMeta?.sourceUrl || sourceUrl || ''
+                    })
+                });
+                adoptDriveSession(response, driveSession);
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.error || `Google Drive respondió con estado ${response.status}`);
+                return data;
+            };
+
+            const handleUrlTranscribe = async (autoSaveGithub = false, autoSaveDrive = false, mode = 'audio') => {
                 const url = sourceUrl.trim();
                 if (!url) {
                     setErrorMsg("Pega un enlace de YouTube, TikTok u otra plataforma compatible.");
@@ -342,7 +413,7 @@
                 const estimate = durations.length ? durations.reduce((sum, value) => sum + value, 0) / durations.length : defaultEstimate;
 
                 setLoading(true);
-                setSaving(autoSave);
+                setSaving(autoSaveGithub || autoSaveDrive);
                 setActiveMode(mode);
                 resetOutput();
                 setUrlProgress(5);
@@ -368,14 +439,20 @@
                         localStorage.setItem(progressKey, JSON.stringify([...durations, Date.now() - startedAt].slice(-5)));
                     } catch (_) {}
 
-                    if (autoSave) {
-                        await saveTranscriptToGitHub(data.transcription, {
-                            title: data.suggestedTitle || "",
-                            platform: data.platform || "URL",
-                            model: data.model || "",
-                            fileName: data.fileName || "URL remota",
-                            sourceUrl: data.sourceUrl || url
-                        });
+                    if (autoSaveGithub || autoSaveDrive) {
+                        const meta = {
+                            title: data.suggestedTitle || '', platform: data.platform || 'URL',
+                            model: data.model || '', fileName: data.fileName || 'URL remota', sourceUrl: data.sourceUrl || url
+                        };
+                        const saved = await Promise.allSettled([
+                            ...(autoSaveGithub ? [saveTranscriptToGitHub(data.transcription, meta)] : []),
+                            ...(autoSaveDrive ? [saveTranscriptToDrive(data.transcription, meta)] : [])
+                        ]);
+                        const destinations = [autoSaveGithub && 'GitHub', autoSaveDrive && 'Google Drive'].filter(Boolean);
+                        const successes = saved.map((entry, index) => entry.status === 'fulfilled' ? destinations[index] : null).filter(Boolean);
+                        const failures = saved.map((entry, index) => entry.status === 'rejected' ? `${destinations[index]}: ${entry.reason?.message || 'error al guardar'}` : null).filter(Boolean);
+                        setSaveMsg(successes.length ? `Guardado en ${successes.join(' y ')}.` : null);
+                        if (failures.length) setErrorMsg(`La transcripción está lista, pero no se pudo guardar en ${failures.join('; ')}.`);
                     }
                 } catch (error) {
                     const networkError = error instanceof TypeError || /NetworkError|Failed to fetch/i.test(error.message || '');
@@ -496,9 +573,16 @@
                                         </div>
                                     ) : (
                                         <div className="grid grid-cols-1 gap-2">
-                                            <button onClick={() => handleUrlTranscribe(!!(githubConnected && githubRepository && saveOnTranscribe))} disabled={loading || !sourceUrl.trim() || !canTranscribe} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">{saveOnTranscribe && githubConnected && githubRepository ? 'Transcribir y guardar' : 'Transcribir vídeo'}</button>
+                                            <button onClick={() => handleUrlTranscribe(!!(githubConnected && githubRepository && saveOnTranscribe), !!(driveConnected && saveToDrive))} disabled={loading || !sourceUrl.trim() || !canTranscribe} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">{(saveOnTranscribe && githubConnected && githubRepository) || (saveToDrive && driveConnected) ? 'Transcribir y guardar' : 'Transcribir vídeo'}</button>
                                         </div>
                                     )}
+                                </div>
+                                <div className={driveConnected ? "rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-xs shrink-0" : "flex flex-col items-center gap-1 text-xs shrink-0"}>
+                                    {driveConnected ? <>
+                                        <div className="flex items-center justify-between gap-2"><span className="text-emerald-300 truncate">Google Drive conectado: {driveName}</span><button onClick={disconnectDrive} className="text-slate-400 hover:text-white shrink-0">Desconectar</button></div>
+                                        <p className="mt-2 text-slate-400 text-left">Se guardará en tu carpeta AETERNA de Drive.</p>
+                                        <label className="flex items-center gap-2 text-slate-300 mt-2"><input type="checkbox" checked={saveToDrive} onChange={(e) => setSaveToDrive(e.target.checked)} className="accent-emerald-500" />Guardar esta transcripción en Google Drive</label>
+                                    </> : driveChecking ? <span className="text-slate-400" role="status">Recuperando Google Drive…</span> : driveConfigured ? <button onClick={() => { location.href = `${BACKEND_URL}/api/drive-auth/start`; }} className="inline-flex max-w-full items-center justify-center gap-2 rounded-xl border border-slate-600 bg-slate-800 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-700">Conectar Google Drive</button> : null}
                                 </div>
                                 <div className={githubConnected ? "rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-xs shrink-0" : "flex flex-col items-center gap-1 text-xs shrink-0"}>
                                     {githubConnected ? (

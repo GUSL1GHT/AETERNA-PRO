@@ -10,13 +10,15 @@ const { pipeline } = require('stream/promises');
 const ytdlp = require('yt-dlp-exec');
 const { GoogleGenAI, createUserContent, createPartFromUri } = require('@google/genai');
 const { sealSession, openSession } = require('./session-seal');
+const { registerDriveRoutes } = require('./drive-integration');
 
 const app = express();
 const upload = multer({ dest: 'uploads/' });
 
 app.use(cors());
-app.use((req, res, next) => { res.set('Access-Control-Expose-Headers', 'X-Aeterna-Github-Session'); next(); });
+app.use((req, res, next) => { res.set('Access-Control-Expose-Headers', 'X-Aeterna-Github-Session, X-Aeterna-Drive-Session'); next(); });
 app.use(express.json({ limit: '2mb' }));
+registerDriveRoutes(app);
 
 const geminiSessions = new Map();
 const GEMINI_SESSION_MS = 7 * 24 * 60 * 60 * 1000;

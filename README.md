@@ -1,6 +1,6 @@
 # AETERNA PRO
 
-Aplicación web y PWA para transcribir enlaces de vídeos o publicaciones y, opcionalmente, guardar la transcripción en GitHub.
+Aplicación web y PWA para transcribir enlaces de vídeos o publicaciones y, opcionalmente, guardar la transcripción en GitHub, Google Drive o ambos.
 
 ## Estado
 
@@ -8,6 +8,7 @@ Aplicación web y PWA para transcribir enlaces de vídeos o publicaciones y, opc
 - `main` contiene una versión anterior que solo admite archivos.
 - El backend de Beta v1.2 arranca con `backend/server-v11.js` según `backend/package.json`.
 - Cada persona elige un repositorio personal autorizado para guardar sus transcripciones. La GitHub App es pública e instalable en otras cuentas, pero la instalación de GUSL1GHT sigue limitada a [AETERNA-TRANSCRIPTS](https://github.com/GUSL1GHT/AETERNA-TRANSCRIPTS). `sources/aeterna/inbox/` conserva fuentes históricas.
+- Google Drive guarda documentos de Google en una carpeta `AETERNA` dentro de la cuenta conectada. Su casilla es independiente de GitHub: se puede guardar en ambos a la vez.
 
 ## Probar en Windows
 
@@ -16,7 +17,11 @@ Aplicación web y PWA para transcribir enlaces de vídeos o publicaciones y, opc
 3. Ejecutar `tools/run-dev.ps1`. Abre la web en `http://127.0.0.1:8080/` y la API en `http://127.0.0.1:3000/`.
 4. Consultar `tools/check-dev.ps1` y detener con `tools/stop-dev.ps1`.
 
-No se guardan credenciales en el repositorio. Cada usuario externo necesita su propia clave de Gemini para transcribir. La clave introducida se envía al backend por HTTPS y queda únicamente en memoria del proceso; el navegador recuerda solo un identificador de sesión. Tras reiniciar o dormir Render habrá que conectarla de nuevo. La `GEMINI_API_KEY` ya configurada en Render solo se usa para la cuenta GUSL1GHT tras verificar su sesión de GitHub; otras cuentas nunca acceden a esa cuota. Cada persona instala la GitHub App únicamente en los repositorios que elija.
+No se guardan credenciales en el repositorio. Cada usuario externo necesita su propia clave de Gemini para transcribir. La clave introducida se envía al backend por HTTPS y queda en una sesión cifrada del navegador que sobrevive a reinicios de Render durante un máximo de 90 días. La `GEMINI_API_KEY` ya configurada en Render solo se usa para la cuenta GUSL1GHT tras verificar su sesión de GitHub; otras cuentas nunca acceden a esa cuota. Cada persona instala la GitHub App únicamente en los repositorios que elija.
+
+## Conectar Google Drive
+
+El operador de AETERNA debe activar la API de Google Drive en Google Cloud, configurar una pantalla de consentimiento OAuth para usuarios externos y crear un cliente OAuth de tipo **Aplicación web**. La URI de redirección autorizada es `https://aeterna-pro-backend.onrender.com/api/drive-auth/callback` (o la URL pública del backend si cambia). En Render se configuran `GOOGLE_DRIVE_CLIENT_ID` y `GOOGLE_DRIVE_CLIENT_SECRET`. No se escriben sus valores en el repositorio. El backend solicita exclusivamente `https://www.googleapis.com/auth/drive.file`, para crear y gestionar los documentos de AETERNA, sin acceso general al Drive del usuario. Una vez configurado, aparece **Conectar Google Drive** en la interfaz. Cada persona autoriza su propia cuenta; no necesita conocer ninguna clave OAuth. Si Google Cloud mantiene la aplicación en modo de prueba, solo podrán conectar los usuarios de prueba añadidos allí y las autorizaciones pueden caducar antes.
 
 Al conectar una clave de Gemini, el backend consulta los modelos disponibles para esa clave. Prefiere los modelos Flash actuales en cuentas nuevas y conserva la preferencia por los modelos 2.5 en la cuenta propietaria, con alternativas si un modelo deja de estar disponible.
 
@@ -34,7 +39,7 @@ La URL se vacía después de una transcripción correcta y se conserva si falla,
 
 Tras obtener un resultado, **Compartir** usa el menú de compartir del dispositivo cuando existe; en otros navegadores copia el texto para pegarlo en otra aplicación. En local, la web y la API deben arrancarse juntas con `tools/run-dev.ps1`; abrir solo `127.0.0.1:8080` produce un error de conexión.
 
-La interfaz ocupa la altura disponible de la ventana. Las transcripciones largas se desplazan dentro del panel de texto, mientras que los botones Descargar archivo y Compartir permanecen visibles. Guardar en GitHub requiere activar explícitamente la casilla junto al repositorio elegido antes de transcribir. En pantallas pequeñas se muestra primero el resultado y se puede volver al formulario con el botón superior.
+La interfaz ocupa la altura disponible de la ventana. Las transcripciones largas se desplazan dentro del panel de texto, mientras que los botones Descargar archivo y Compartir permanecen visibles. Guardar en GitHub o Drive requiere activar explícitamente la casilla correspondiente antes de transcribir. Si se marcan ambas, los dos guardados se intentan por separado y se informa de cualquier fallo. En pantallas pequeñas se muestra primero el resultado y se puede volver al formulario con el botón superior.
 
 Después de transcribir, **Crear guía paso a paso** hace una petición de texto adicional a Gemini solo si se pulsa. Prefiere un modelo Flash-Lite disponible para reducir consumo. La guía aparece en una pestaña separada y la transcripción original se conserva; Descargar archivo y Compartir actúan sobre la pestaña visible. Si el vídeo no ofrece pasos suficientes, no se fabrica una guía. Los enlaces solo se incluyen si aparecen completos en la transcripción; los pasos ausentes se marcan para revisión. El punto de retorno anterior a esta función es la etiqueta `aeterna-v1.2-before-guides-20261024`.
 
