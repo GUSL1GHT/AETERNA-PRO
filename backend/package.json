@@ -4,7 +4,8 @@
   "description": "Backend seguro para AETERNA PRO",
   "main": "server-v11.js",
   "scripts": {
-    "start": "node server-v11.js"
+    "start": "node server-v11.js",
+    "test": "node --test session-seal.test.js session-integration.test.js"
   },
   "dependencies": {
     "@google/genai": "latest",

@@ -52,12 +52,14 @@
             const [platform, setPlatform] = useState("TikTok");
             const [geminiSession, setGeminiSession] = useState(() => localStorage.getItem('aeterna-gemini-session') || '');
             const [geminiConnected, setGeminiConnected] = useState(false);
+            const [geminiChecking, setGeminiChecking] = useState(() => !!localStorage.getItem('aeterna-gemini-session'));
             const [geminiOpen, setGeminiOpen] = useState(false);
             const [geminiApiKey, setGeminiApiKey] = useState('');
             const [geminiBusy, setGeminiBusy] = useState(false);
             const [geminiError, setGeminiError] = useState('');
             const [githubSession, setGithubSession] = useState(() => localStorage.getItem('aeterna-github-session') || '');
             const [githubConnected, setGithubConnected] = useState(false);
+            const [githubChecking, setGithubChecking] = useState(() => !!localStorage.getItem('aeterna-github-session') || location.hash.includes('github_session='));
             const [githubLogin, setGithubLogin] = useState('');
             const ownerGeminiReady = githubConnected && githubLogin.toLowerCase() === 'gusl1ght';
             const canTranscribe = geminiConnected || ownerGeminiReady;
@@ -74,19 +76,22 @@
             }, [guideView, guide, result]);
 
             useEffect(() => {
-                if (!geminiSession) return;
+                if (!geminiSession) { setGeminiChecking(false); return; }
                 let active = true;
+                setGeminiChecking(true);
                 fetch(`${BACKEND_URL}/api/gemini-auth/status`, { headers: { 'X-Aeterna-Gemini-Session': geminiSession } })
-                    .then(response => response.json())
-                    .then(data => {
+                    .then(async response => ({ ok: response.ok, status: response.status, data: await response.json() }))
+                    .then(({ ok, status, data }) => {
                         if (!active) return;
+                        if (!ok && status !== 401) throw new Error('Estado temporalmente no disponible');
                         setGeminiConnected(!!data.connected);
                         if (!data.connected) {
                             localStorage.removeItem('aeterna-gemini-session');
                             setGeminiSession('');
                         }
+                        setGeminiChecking(false);
                     })
-                    .catch(() => { if (active) setGeminiError('No se puede comprobar la conexión con Gemini.'); });
+                    .catch(() => { if (active) { setGeminiError('No se puede comprobar la conexión con Gemini.'); setGeminiChecking(false); } });
                 return () => { active = false; };
             }, [geminiSession]);
 
@@ -139,10 +144,20 @@
                 setInstallPrompt(null);
             };
 
+            const adoptGithubSession = (response, previous) => {
+                const renewed = response.headers.get('X-Aeterna-Github-Session');
+                if (renewed) {
+                    localStorage.setItem('aeterna-github-session', renewed);
+                    setGithubSession(renewed);
+                }
+                return renewed || previous;
+            };
+
             const loadRepositories = async (session) => {
                 setRepositoryLoading(true);
                 try {
                     const response = await fetch(`${BACKEND_URL}/api/github-auth/repositories`, { headers: { Authorization: `Bearer ${session}` } });
+                    adoptGithubSession(response, session);
                     const data = await response.json();
                     if (!response.ok) throw new Error(data.error || 'No se pudieron cargar los repositorios.');
                     const list = data.repositories || [];
@@ -179,6 +194,7 @@
                         setGithubInstallUrl(config.installUrl || '');
                         if (session && config.configured) {
                             const response = await fetch(`${BACKEND_URL}/api/github-auth/status`, { headers: { Authorization: `Bearer ${session}` } });
+                            session = adoptGithubSession(response, session);
                             const data = await response.json();
                             if (response.ok && data.connected) {
                                 localStorage.setItem('aeterna-github-session', session);
@@ -186,13 +202,14 @@
                                 setGithubConnected(true);
                                 setGithubLogin(data.login || '');
                                 await loadRepositories(session);
-                            } else {
+                            } else if (response.status === 401) {
                                 localStorage.removeItem('aeterna-github-session');
                                 sessionStorage.removeItem('aeterna-github-session');
                                 setGithubSession('');
                             }
                         }
                     } catch (_) {}
+                    finally { setGithubChecking(false); }
                 };
                 loadGithub();
             }, []);
@@ -279,6 +296,7 @@
                         sourceUrl: meta.sourceUrl || resultMeta?.sourceUrl || sourceUrl || ""
                     })
                 });
+                adoptGithubSession(response, githubSession);
                 const data = await response.json();
                 if (!response.ok || !data.success) {
                     if (response.status === 401 && /GitHub/i.test(data.error || '')) await disconnectGithub();
@@ -316,6 +334,7 @@
                         headers: { "Content-Type": "application/json", 'X-Aeterna-Gemini-Session': geminiSession, 'X-Aeterna-Github-Session': githubSession },
                         body: JSON.stringify({ url, mode })
                     });
+                    adoptGithubSession(response, githubSession);
                     const data = await response.json();
                     if (!response.ok || !data.success) {
                         throw new Error(data.error || `Error del servidor (${response.status})`);
@@ -361,6 +380,7 @@
                         headers: { 'Content-Type': 'application/json', 'X-Aeterna-Gemini-Session': geminiSession, 'X-Aeterna-Github-Session': githubSession },
                         body: JSON.stringify({ transcription: result, title, sourceUrl: resultMeta?.sourceUrl || '', mode: resultMeta?.mode || 'audio' })
                     });
+                    adoptGithubSession(response, githubSession);
                     const data = await response.json();
                     if (!response.ok || !data.success) throw new Error(response.status === 401 ? 'Vuelve a conectar Gemini para crear la guía.' : data.error || 'No se pudo crear la guía.');
                     setGuide(data.guide);
@@ -426,7 +446,9 @@
                             <section className={`${hasOutput ? 'hidden lg:flex' : 'flex'} min-h-0 overflow-y-auto lg:border-r border-slate-800 p-2 md:p-4 flex-col gap-3`}>
                                 <div className="bg-slate-950/70 p-3 rounded-2xl border border-cyan-900/60 text-center shrink-0">
                                     <div className="mb-3 text-sm">
-                                        {geminiConnected || ownerGeminiReady ? null : geminiOpen ? (
+                                        {geminiConnected || ownerGeminiReady ? null : geminiChecking || githubChecking ? (
+                                            <p className="rounded-xl border border-slate-700 bg-slate-900 p-3 text-xs text-slate-300" role="status">Recuperando conexiones…</p>
+                                        ) : geminiOpen ? (
                                             <form onSubmit={connectGemini} className="rounded-xl border border-violet-700 bg-slate-900 p-3 text-left space-y-2">
                                                 <div className="font-semibold text-violet-200">Conectar Gemini</div>
                                                 <p className="text-xs text-slate-300">Usa tu propia clave para transcribir. <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-cyan-300 underline">Crear clave gratis</a></p>
@@ -460,6 +482,8 @@
                                 <div className={githubConnected ? "rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-xs shrink-0" : "flex flex-col items-center gap-1 text-xs shrink-0"}>
                                     {githubConnected ? (
                                         <div className="flex items-center justify-between gap-2"><span className="flex items-center gap-2 text-emerald-300 truncate"><GithubIcon /> GitHub conectado: {githubLogin}</span><button onClick={disconnectGithub} className="text-slate-400 hover:text-white shrink-0">Desconectar</button></div>
+                                    ) : githubChecking ? (
+                                        <span className="text-slate-400" role="status">Recuperando GitHub…</span>
                                     ) : githubConfigured ? (
                                         <button onClick={() => { location.href = `${BACKEND_URL}/api/github-auth/start`; }} className="inline-flex max-w-full items-center justify-center gap-2 rounded-xl border border-slate-600 bg-slate-800 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-700 transition-colors"><GithubIcon /> Conectar GitHub</button>
                                     ) : <span className="text-slate-400">Guardado en GitHub no disponible</span>}

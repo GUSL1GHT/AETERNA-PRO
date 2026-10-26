@@ -9,19 +9,24 @@ const { Readable } = require('stream');
 const { pipeline } = require('stream/promises');
 const ytdlp = require('yt-dlp-exec');
 const { GoogleGenAI, createUserContent, createPartFromUri } = require('@google/genai');
+const { sealSession, openSession } = require('./session-seal');
 
 const app = express();
 const upload = multer({ dest: 'uploads/' });
 
 app.use(cors());
+app.use((req, res, next) => { res.set('Access-Control-Expose-Headers', 'X-Aeterna-Github-Session'); next(); });
 app.use(express.json({ limit: '2mb' }));
 
 const geminiSessions = new Map();
 const GEMINI_SESSION_MS = 7 * 24 * 60 * 60 * 1000;
+const PERSISTENT_SESSION_MS = 90 * 24 * 60 * 60 * 1000;
 const OWNER_GEMINI_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3.6-flash', 'gemini-3.5-flash-lite'];
 const USER_GEMINI_MODELS = ['gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'];
 const geminiSessionFromRequest = (req) => {
   const sessionId = req.get('X-Aeterna-Gemini-Session') || '';
+  const persistent = openSession(sessionId, 'gemini');
+  if (persistent) return { ...persistent, lastUsed: Date.now() };
   if (!/^[a-f0-9]{64}$/.test(sessionId)) return null;
   const session = geminiSessions.get(sessionId);
   if (!session) return null;
@@ -41,9 +46,10 @@ const requireGeminiSession = async (req, res, next) => {
   }
   try {
     const githubSessionId = req.get('X-Aeterna-Github-Session') || '';
-    if (/^[a-f0-9]{64}$/.test(githubSessionId) && process.env.GEMINI_API_KEY) {
-      const githubSession = githubSessions.get(githubSessionId);
-      if (githubSession?.login?.toLowerCase() === 'gusl1ght' && await sessionFromId(githubSessionId)) {
+    if (githubSessionId && process.env.GEMINI_API_KEY) {
+      const githubSession = await sessionFromId(githubSessionId);
+      if (githubSession?.login?.toLowerCase() === 'gusl1ght') {
+        if (githubSession.renewedSessionId) res.set('X-Aeterna-Github-Session', githubSession.renewedSessionId);
         req.geminiAi = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
         req.geminiModels = OWNER_GEMINI_MODELS;
         return next();
@@ -76,8 +82,8 @@ app.post('/api/gemini-auth/connect', async (req, res) => {
       if (Date.now() - session.lastUsed > GEMINI_SESSION_MS) geminiSessions.delete(id);
     }
     if (geminiSessions.size >= 1000) geminiSessions.delete(geminiSessions.keys().next().value);
-    const sessionId = crypto.randomBytes(32).toString('hex');
-    geminiSessions.set(sessionId, { apiKey, models, lastUsed: Date.now() });
+    const sessionId = sealSession('gemini', { apiKey, models }, PERSISTENT_SESSION_MS) || crypto.randomBytes(32).toString('hex');
+    if (/^[a-f0-9]{64}$/.test(sessionId)) geminiSessions.set(sessionId, { apiKey, models, lastUsed: Date.now() });
     res.json({ connected: true, sessionId, model: models[0] });
   } catch (_) {
     res.status(502).json({ error: 'No se ha podido conectar con Gemini. Inténtalo de nuevo.' });
@@ -192,7 +198,7 @@ const githubTokenRequest = async (params) => {
 };
 
 const sessionFromId = async (sessionId) => {
-  const session = sessionId && githubSessions.get(sessionId);
+  const session = openSession(sessionId, 'github') || (sessionId && githubSessions.get(sessionId));
   if (!session) return null;
   if (session.expiresAt && Date.now() > session.expiresAt - 60000) {
     if (!session.refreshToken || !githubAppConfigured()) {
@@ -209,6 +215,10 @@ const sessionFromId = async (sessionId) => {
       session.accessToken = refreshed.access_token;
       session.refreshToken = refreshed.refresh_token || null;
       session.expiresAt = refreshed.expires_in ? Date.now() + refreshed.expires_in * 1000 : null;
+      session.renewedSessionId = sealSession('github', {
+        login: session.login, accessToken: session.accessToken,
+        refreshToken: session.refreshToken, expiresAt: session.expiresAt
+      }, PERSISTENT_SESSION_MS);
     } catch (_) {
       githubSessions.delete(sessionId);
       return null;
@@ -216,7 +226,12 @@ const sessionFromId = async (sessionId) => {
   }
   return session;
 };
-const sessionFromRequest = (req) => sessionFromId(/^Bearer ([a-f0-9]{64})$/.exec(req.get('Authorization') || '')?.[1]);
+const sessionFromRequest = async (req, res) => {
+  const token = /^Bearer (.+)$/.exec(req.get('Authorization') || '')?.[1];
+  const session = await sessionFromId(token);
+  if (session?.renewedSessionId && res) res.set('X-Aeterna-Github-Session', session.renewedSessionId);
+  return session;
+};
 
 const githubGet = async (path, token) => {
   const response = await fetch(`https://api.github.com${path}`, { headers: githubHeaders(token) });
@@ -875,13 +890,14 @@ app.get('/api/github-auth/callback', async (req, res) => {
     const userResponse = await fetch('https://api.github.com/user', { headers: githubHeaders(token.access_token) });
     const user = await userResponse.json();
     if (!userResponse.ok || !user.login) return res.status(502).send('GitHub no pudo verificar la cuenta.');
-    const sessionId = crypto.randomBytes(32).toString('hex');
-    githubSessions.set(sessionId, {
+    const sessionData = {
       login: user.login,
       accessToken: token.access_token,
       refreshToken: token.refresh_token || null,
       expiresAt: token.expires_in ? Date.now() + token.expires_in * 1000 : null
-    });
+    };
+    const sessionId = sealSession('github', sessionData, PERSISTENT_SESSION_MS) || crypto.randomBytes(32).toString('hex');
+    if (/^[a-f0-9]{64}$/.test(sessionId)) githubSessions.set(sessionId, sessionData);
     const frontend = new URL(githubFrontendUrl());
     frontend.hash = `github_session=${sessionId}`;
     res.redirect(frontend.toString());
@@ -893,14 +909,14 @@ app.get('/api/github-auth/callback', async (req, res) => {
 
 app.get('/api/github-auth/status', async (req, res) => {
   res.set('Cache-Control', 'no-store');
-  const session = await sessionFromRequest(req);
+  const session = await sessionFromRequest(req, res);
   if (!session) return res.status(401).json({ connected: false });
   res.json({ connected: true, login: session.login });
 });
 
 app.get('/api/github-auth/repositories', async (req, res) => {
   try {
-    const session = await sessionFromRequest(req);
+    const session = await sessionFromRequest(req, res);
     if (!session) return res.status(401).json({ error: 'Conecta tu cuenta de GitHub.' });
     res.set('Cache-Control', 'no-store');
     res.json({ repositories: await githubRepositories(session), installUrl: GITHUB_APP_INSTALL_URL });
@@ -911,7 +927,7 @@ app.get('/api/github-auth/repositories', async (req, res) => {
 });
 
 app.post('/api/github-auth/logout', (req, res) => {
-  const sessionId = /^Bearer ([a-f0-9]{64})$/.exec(req.get('Authorization') || '')?.[1];
+  const sessionId = /^Bearer (.+)$/.exec(req.get('Authorization') || '')?.[1];
   if (sessionId) githubSessions.delete(sessionId);
   res.json({ success: true });
 });
@@ -1187,7 +1203,7 @@ app.post('/api/create-guide', requireGeminiSession, async (req, res) => {
 
 app.post('/api/save-transcript-to-github', requireGeminiSession, async (req, res) => {
   try {
-    const session = await sessionFromRequest(req);
+    const session = await sessionFromRequest(req, res);
     if (!session) return res.status(401).json({ success: false, error: 'Conecta tu cuenta de GitHub para guardar la transcripción.' });
     const token = session.accessToken;
     const selectedRepository = cleanText(req.body?.repository || '');

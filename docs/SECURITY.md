@@ -6,7 +6,9 @@ No guardar claves privadas dentro del repositorio.
 
 ## Estado actual
 
-La web de GitHub Pages permite introducir una clave propia de Gemini. La envía al backend por HTTPS para validarla y usarla; el backend la conserva únicamente en memoria. El navegador guarda en localStorage solo un identificador de sesión aleatorio, nunca la clave. Al reiniciarse o dormirse Render, hay que conectarla otra vez.
+La web de GitHub Pages permite introducir una clave propia de Gemini. La envía al backend por HTTPS para validarla y usarla. El backend devuelve una sesión cifrada y autenticada con una clave derivada del secreto de la GitHub App configurado en Render. El navegador guarda esa sesión cifrada en localStorage; no guarda la clave de Gemini en texto claro. La sesión dura como máximo 90 días y sobrevive a reinicios de Render. La conexión de GitHub usa el mismo mecanismo y renueva su token cuando caduca. Si cambia el secreto de la GitHub App, las sesiones anteriores dejan de funcionar y hay que conectar de nuevo. En instalaciones sin ese secreto, las sesiones siguen siendo temporales en memoria.
+
+Desconectar elimina la sesión de este navegador. Como el servidor no mantiene una lista persistente de revocación, una copia de la sesión cifrada seguiría siendo utilizable hasta caducar. Si se sospecha que alguien la ha copiado, hay que revocar la clave de Gemini o el acceso de GitHub correspondiente.
 
 Quien introduzca una clave debe confiar en el operador del backend. La variable `GEMINI_API_KEY` de Render solo se utiliza tras verificar la sesión de GitHub de GUSL1GHT; las demás cuentas usan su propia clave.
 
@@ -18,7 +20,7 @@ La URL de la web y de la API son públicas. Sin un control de acceso adicional, 
 
 1. Frontend estatico en GitHub Pages.
 2. Backend seguro propio.
-3. Cada usuario introduce su clave de Gemini; el backend la guarda temporalmente en memoria.
+3. Cada usuario introduce su clave de Gemini una vez por navegador y periodo de sesión; el backend emite una sesión cifrada.
 4. El frontend llama al backend, no directamente a Gemini.
 
 ## Prohibido
