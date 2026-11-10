@@ -12,7 +12,7 @@ Aplicación web y PWA para transcribir enlaces de vídeos o publicaciones y, opc
 
 ## Probar en Windows
 
-1. Instalar Node.js 22 o superior y las dependencias de `backend/` (`npm install` o `pnpm install`).
+1. Instalar Node.js 22 o superior y las dependencias de la raíz y de `backend/` (`npm install` en ambas carpetas). Ejecutar `npm run build` en la raíz tras cambiar la interfaz.
 2. Abrir la interfaz y pulsar **Conectar Gemini** para introducir la clave propia. Para iniciar sesión con GitHub se requieren `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET` y una GitHub App instalada solo en `AETERNA-TRANSCRIPTS` con permiso Contents de escritura.
 3. Ejecutar `tools/run-dev.ps1`. Abre la web en `http://127.0.0.1:8080/` y la API en `http://127.0.0.1:3000/`.
 4. Consultar `tools/check-dev.ps1` y detener con `tools/stop-dev.ps1`.
@@ -29,6 +29,8 @@ Al conectar una clave de Gemini, el backend consulta los modelos disponibles par
 
 La web pública es una PWA con icono propio. En Chrome para Android, abrir la URL de AETERNA y elegir **Instalar aplicación** en el menú del navegador, o pulsar **Instalar app** cuando aparezca en el pie de la interfaz. En Chrome de escritorio, usar **Instalar** en la barra de direcciones o en el menú. La instalación crea un icono y abre AETERNA en una ventana independiente; las transcripciones siguen necesitando Internet y el backend. No hace falta una APK para este uso. Una APK requeriría un empaquetado Android y firma adicionales.
 
+La PWA instalada con Chrome en Android acepta enlaces desde **Compartir** en aplicaciones compatibles, como TikTok o YouTube. AETERNA abre el formulario con el enlace ya pegado; la transcripción comienza al pulsar el botón. Tras actualizar el manifiesto, una instalación antigua puede necesitar reinstalarse para aparecer como destino en el menú de Android. La disponibilidad final también depende de qué formato envíe la aplicación de origen.
+
 ## Despliegue y limpieza
 
 GitHub Pages sirve la interfaz; Render sirve el backend. La URL pública es [AETERNA PRO](https://gusl1ght.github.io/AETERNA-PRO/). Los vídeos públicos de YouTube se envían directamente a Gemini; otras plataformas usan un extractor `yt-dlp` verificado. Se procesa vídeo cuando está disponible para comprobar los nombres visibles; si solo puede obtener audio, la interfaz lo indica. La interfaz acepta enlaces únicamente; el backend conserva su ruta de archivos sin exponerla en la web. La conexión GitHub usa autorización de usuario con PKCE: el token de GitHub permanece en memoria del backend y el navegador conserva un identificador de sesión temporal. El servidor deja de aceptar escrituras anónimas con su antiguo `GITHUB_TOKEN`.
@@ -39,7 +41,7 @@ La URL se vacía después de una transcripción correcta y se conserva si falla,
 
 Tras obtener un resultado, **Compartir** usa el menú de compartir del dispositivo cuando existe; en otros navegadores copia el texto para pegarlo en otra aplicación. En local, la web y la API deben arrancarse juntas con `tools/run-dev.ps1`; abrir solo `127.0.0.1:8080` produce un error de conexión.
 
-La interfaz ocupa la altura disponible de la ventana. Las transcripciones largas se desplazan dentro del panel de texto, mientras que los botones Descargar archivo y Compartir permanecen visibles. Guardar en GitHub o Drive requiere activar explícitamente la casilla correspondiente antes de transcribir. Si se marcan ambas, los dos guardados se intentan por separado y se informa de cualquier fallo. En pantallas pequeñas se muestra primero el resultado y se puede volver al formulario con el botón superior.
+La interfaz ocupa la altura disponible de la ventana. Las transcripciones largas se desplazan dentro del panel de texto, mientras que los botones Descargar archivo y Compartir permanecen visibles. Con GitHub conectado y un repositorio elegido, cada transcripción se guarda automáticamente allí. Google Drive mantiene su casilla independiente; si se activa, los dos guardados se intentan por separado y se informa de cualquier fallo. En pantallas pequeñas se muestra primero el resultado y se puede volver al formulario con el botón superior.
 
 Después de transcribir, **Crear guía paso a paso** hace una petición de texto adicional a Gemini solo si se pulsa. Prefiere un modelo Flash-Lite disponible para reducir consumo. La guía aparece en una pestaña separada y la transcripción original se conserva; Descargar archivo y Compartir actúan sobre la pestaña visible. Si el vídeo no ofrece pasos suficientes, no se fabrica una guía. Los enlaces solo se incluyen si aparecen completos en la transcripción; los pasos ausentes se marcan para revisión. El punto de retorno anterior a esta función es la etiqueta `aeterna-v1.2-before-guides-20261024`.
 

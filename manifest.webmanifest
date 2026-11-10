@@ -1,12 +1,22 @@
 {
   "name": "AETERNA PRO",
   "short_name": "AETERNA",
+  "id": "./",
   "description": "Transcribe vídeos y extrae texto visible desde un enlace.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#020617",
   "theme_color": "#020617",
+  "share_target": {
+    "action": "./",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
   "icons": [
     {
       "src": "icon.svg",

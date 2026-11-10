@@ -1,7 +1,9 @@
-const CACHE_NAME = "aeterna-pro-v2";
+const CACHE_NAME = "aeterna-pro-v3";
 const CORE_ASSETS = [
   "./",
   "./index.html",
+  "./assets/app.css",
+  "./assets/app.js",
   "./manifest.webmanifest",
   "./icon.svg",
   "./icon-192.png",
