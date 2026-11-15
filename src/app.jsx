@@ -74,12 +74,12 @@ const { useEffect, useRef, useState } = React;
                 try {
                     await self.AeternaOutbox.add({ url, repository, ...sessions });
                 } catch (_) {
-                    setErrorMsg('No se pudo guardar el enlace en este dispositivo. Usa «Transcribir ahora».');
+                    setErrorMsg('No se pudo guardar el enlace en este dispositivo. Vuelve a compartirlo.');
                     return;
                 }
                 setSourceUrl('');
                 setSharedLinkReceived(false);
-                setQueueMsg('Guardado ✓ El vídeo se procesará en segundo plano; puedes cerrar la app.');
+                setQueueMsg('Guardado ✓ Ya puedes volver a TikTok o YouTube: el vídeo se procesará solo.');
                 setQueueRefresh(value => value + 1);
                 self.AeternaOutbox.registerSync();
                 try { await self.AeternaOutbox.flush(BACKEND_URL, sessions); } catch (_) {}
@@ -591,7 +591,7 @@ const { useEffect, useRef, useState } = React;
                                         {geminiError && <p className="mt-1 text-xs text-red-300" role="alert">{geminiError}</p>}
                                     </div>
                                     {queueMsg && <p className="mb-2 rounded-lg border border-emerald-800 bg-emerald-950/50 px-3 py-2 text-left text-sm font-semibold text-emerald-200" role="status">{queueMsg}</p>}
-                                    {sharedLinkReceived && sourceUrl && <p className="mb-2 text-left text-xs text-cyan-300" role="status">Enlace recibido. {canQueue ? 'Guárdalo en la cola o transcríbelo ahora.' : 'Ya puedes transcribirlo.'}</p>}
+                                    {sharedLinkReceived && sourceUrl && <p className="mb-2 text-left text-xs text-cyan-300" role="status">Enlace recibido. {canQueue ? 'Pulsa «Guardar en la cola».' : 'Ya puedes transcribirlo.'}</p>}
                                     <input type="url" value={sourceUrl} onChange={(e) => { setSourceUrl(e.target.value); setSharedLinkReceived(false); setQueueMsg(''); }} disabled={loading} aria-label="Enlace de YouTube o TikTok" placeholder="Pega un enlace de YouTube o TikTok" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 text-sm text-slate-100 placeholder-slate-500 text-left mb-3 disabled:opacity-70" />
                                     {urlTranscribing ? (
                                         <div className="rounded-xl border border-cyan-900/60 bg-slate-900/60 p-3 text-left" aria-live="polite">
@@ -607,7 +607,7 @@ const { useEffect, useRef, useState } = React;
                                     ) : (
                                         <div className="grid grid-cols-1 gap-2">
                                             {canQueue && <button onClick={() => enqueueUrl(sourceUrl.trim())} disabled={loading || !/^https?:\/\//i.test(sourceUrl.trim())} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">Guardar en la cola</button>}
-                                            <button onClick={() => handleUrlTranscribe(!!(githubConnected && githubRepository), !!(driveConnected && saveToDrive))} disabled={loading || !sourceUrl.trim() || !canTranscribe || (githubConnected && !githubRepository)} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">{(githubConnected && githubRepository) || (saveToDrive && driveConnected) ? (canQueue ? 'Transcribir ahora y guardar' : 'Transcribir y guardar') : 'Transcribir vídeo'}</button>
+                                            {!canQueue && <button onClick={() => handleUrlTranscribe(!!(githubConnected && githubRepository), !!(driveConnected && saveToDrive))} disabled={loading || !sourceUrl.trim() || !canTranscribe || (githubConnected && !githubRepository)} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">{(githubConnected && githubRepository) || (saveToDrive && driveConnected) ? 'Transcribir y guardar' : 'Transcribir vídeo'}</button>}
                                         </div>
                                     )}
                                 </div>
