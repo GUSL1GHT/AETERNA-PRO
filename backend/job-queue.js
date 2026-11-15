@@ -35,10 +35,10 @@ const uniquePath = async (read, folder, baseName) => {
 };
 
 // Decide carpeta y contenido, y devuelve la lista de archivos del commit.
-const buildPublication = async ({ job, raw, formatted, platform, model, read }) => {
+const buildPublication = async ({ job, raw, formatted, formatError = null, metadata = null, fallbackTitle = '', platform, model, read }) => {
   const date = new Date(job.createdAt);
   const day = lib.madridDate(date);
-  const title = lib.safeTitle(formatted?.title || 'Vídeo sin título');
+  const title = lib.safeTitle(formatted?.title || fallbackTitle || 'Vídeo sin título');
   const body = [formatted?.narration, ...(formatted?.onScreen || [])].join('\n');
   const allText = [formatted?.title, formatted?.summary, ...(formatted?.ideas || []), body].join('\n');
   const check = formatted ? lib.verifyCleanText(raw, allText, body) : { ok: false, missing: [], warnings: [], ratio: 0 };
@@ -47,8 +47,9 @@ const buildPublication = async ({ job, raw, formatted, platform, model, read }) 
 
   const extraNotes = [`Procesado por AETERNA en segundo plano con ${model || 'Gemini'}.`];
   if (check.warnings.length) extraNotes.push(`Rótulos en mayúsculas no encontrados en el texto limpio: ${check.warnings.slice(0, 15).join(', ')}.`);
-  if (!topic) extraNotes.push('Tema dudoso: revisar y mover a su carpeta.');
-  if (!check.ok) {
+  if (!formatted) extraNotes.push(`Gemini no pudo ordenar el texto${formatError ? ` (${formatError})` : ''}; se guarda el original para revisión.`);
+  else if (!topic) extraNotes.push('Tema dudoso: revisar y mover a su carpeta.');
+  if (formatted && !check.ok) {
     extraNotes.push(check.missing.length
       ? `El texto limpio no conserva estas fichas del original: ${check.missing.slice(0, 20).join(', ')}. Revisar con el texto original de abajo.`
       : `El texto limpio es demasiado corto (${Math.round(check.ratio * 100)} % de las palabras). Revisar con el texto original de abajo.`);
@@ -59,6 +60,7 @@ const buildPublication = async ({ job, raw, formatted, platform, model, read }) 
     summary: formatted?.summary, ideas: formatted?.ideas, narration: formatted?.narration,
     onScreen: formatted?.onScreen, tags: formatted?.tags, quality: formatted?.quality,
     doubtfulTerms: formatted?.doubtfulTerms, extraNotes,
+    creatorDescription: metadata?.description, creator: metadata?.creator, creatorUrl: metadata?.creatorUrl,
     originalText: review ? lib.stripMarks(raw).replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n') : null
   });
 
@@ -85,15 +87,25 @@ const createJobQueue = ({ log = console } = {}) => {
     let lastError;
     let transcript = null;
     let formatted;
+    let formatError = null;
     for (let attempt = 0; attempt <= RETRY_DELAYS_S.length; attempt++) {
       active.set(job.id, { status: 'procesando', attempts: job.attempts + attempt + 1 });
       try {
         if (!transcript) transcript = await ctx.transcribe(job.url);
-        if (formatted === undefined) formatted = await ctx.format(transcript.transcription, { url: job.url, platform: transcript.platform })
-          .catch(error => { log.warn?.('No se pudo dar formato; queda para revisión:', error.message); return null; });
+        if (formatted === undefined) {
+          try {
+            formatted = await ctx.format(transcript.transcription, { url: job.url, platform: transcript.platform, description: transcript.metadata?.description });
+          } catch (error) {
+            // Un fallo temporal se reintenta; si persiste, el vídeo se guarda para revisión con el motivo.
+            if (isTemporary(error) && attempt < RETRY_DELAYS_S.length) throw error;
+            log.warn?.('No se pudo dar formato; queda para revisión:', error.message);
+            formatted = null;
+            formatError = String(error?.message || error).replace(/\s+/g, ' ').slice(0, 200);
+          }
+        }
         let published;
         await ctx.store.commitFiles(async (read) => {
-          published = await buildPublication({ job, raw: transcript.transcription, formatted, platform: transcript.platform, model: transcript.model, read });
+          published = await buildPublication({ job, raw: transcript.transcription, formatted, formatError, metadata: transcript.metadata, fallbackTitle: transcript.suggestedTitle, platform: transcript.platform, model: transcript.model, read });
           const done = {
             ...job, status: 'hecho', attempts: job.attempts + attempt + 1, updatedAt: new Date().toISOString(), error: null,
             result: { path: published.path, url: ctx.store.htmlUrl(published.path), title: published.title, topic: published.topic, review: published.review }

@@ -85,3 +85,39 @@ test('un error definitivo queda guardado como error, sin reintentos', async () =
   assert.strictEqual(job.status, 'error');
   assert.match(job.error, /Vídeo privado/);
 });
+
+test('si Gemini no puede ordenar el texto: título provisional, motivo en Notas y revisión', async () => {
+  const store = memoryStore();
+  const job = await run(store, {
+    transcribe: async () => ({ transcription: RAW, platform: 'TikTok', suggestedTitle: 'Tres trucos con MCP' }),
+    format: async () => { throw new Error('respuesta no válida'); }
+  });
+  assert.ok(job.result.review);
+  assert.ok(job.result.path.endsWith('Tres trucos con MCP.md'));
+  const md = store.files.get(job.result.path);
+  assert.match(md, /Gemini no pudo ordenar el texto \(respuesta no válida\)/);
+  assert.ok(!/demasiado corto/.test(md));
+});
+
+test('un fallo temporal al ordenar se reintenta sin volver a transcribir', async () => {
+  const store = memoryStore({ 'Skills y Claude Code/Índice.md': INDEX });
+  let transcribed = 0, formats = 0;
+  const job = await run(store, {
+    transcribe: async () => { transcribed++; return { transcription: RAW, platform: 'TikTok' }; },
+    format: async () => { formats++; if (formats === 1) { const e = new Error('429 RESOURCE_EXHAUSTED'); throw e; } return GOOD; }
+  });
+  assert.strictEqual(transcribed, 1);
+  assert.strictEqual(formats, 2);
+  assert.strictEqual(job.result.review, false);
+});
+
+test('incluye la descripción del creador tal cual', async () => {
+  const store = memoryStore({ 'Skills y Claude Code/Índice.md': INDEX });
+  const job = await run(store, {
+    transcribe: async () => ({ transcription: RAW, platform: 'TikTok', metadata: { description: '1️⃣ /plugin install x@y\nGuía: https://ejemplo.dev', creator: 'ia.cadasemana', creatorUrl: 'https://www.tiktok.com/@ia.cadasemana' } }),
+    format: async () => GOOD
+  });
+  const md = store.files.get(job.result.path);
+  assert.ok(md.includes('## Descripción del creador\n\nPublicado por [ia.cadasemana](https://www.tiktok.com/@ia.cadasemana).\n\n> 1️⃣ /plugin install x@y\n> Guía: https://ejemplo.dev'));
+  assert.ok(md.indexOf('## En pantalla') < md.indexOf('## Descripción del creador') && md.indexOf('## Descripción del creador') < md.indexOf('## Notas'));
+});

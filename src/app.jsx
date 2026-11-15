@@ -10,6 +10,13 @@ const { useEffect, useRef, useState } = React;
 
         const GithubIcon = () => <svg viewBox="0 0 16 16" aria-hidden="true" className="h-5 w-5 fill-current shrink-0"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.85-2.69-1.3-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82A7.65 7.65 0 0 1 8 4.73c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>;
 
+        // Primer enlace http(s) válido de un texto compartido o pegado.
+        const linkFromText = (text) => {
+            const found = String(text || '').match(/https?:\/\/[^\s<>"']+/i)?.[0]?.replace(/[.,;!?)]*$/, '');
+            if (!found) return '';
+            try { return new URL(found).href; } catch (_) { return ''; }
+        };
+
         function App() {
             const [loading, setLoading] = useState(false);
             const [saving, setSaving] = useState(false);
@@ -26,8 +33,8 @@ const { useEffect, useRef, useState } = React;
             const [sourceUrl, setSourceUrl] = useState(() => {
                 const shared = new URLSearchParams(location.search);
                 for (const value of [shared.get('url'), shared.get('text'), shared.get('title')]) {
-                    const found = String(value || '').match(/https?:\/\/[^\s<>"']+/i)?.[0]?.replace(/[.,;!?)]*$/, '');
-                    if (found) { try { return new URL(found).href; } catch (_) {} }
+                    const found = linkFromText(value);
+                    if (found) return found;
                 }
                 return '';
             });
@@ -591,8 +598,12 @@ const { useEffect, useRef, useState } = React;
                                         {geminiError && <p className="mt-1 text-xs text-red-300" role="alert">{geminiError}</p>}
                                     </div>
                                     {queueMsg && <p className="mb-2 rounded-lg border border-emerald-800 bg-emerald-950/50 px-3 py-2 text-left text-sm font-semibold text-emerald-200" role="status">{queueMsg}</p>}
-                                    {sharedLinkReceived && sourceUrl && <p className="mb-2 text-left text-xs text-cyan-300" role="status">Enlace recibido. {canQueue ? 'Pulsa «Guardar en la cola».' : 'Ya puedes transcribirlo.'}</p>}
-                                    <input type="url" value={sourceUrl} onChange={(e) => { setSourceUrl(e.target.value); setSharedLinkReceived(false); setQueueMsg(''); }} disabled={loading} aria-label="Enlace de YouTube o TikTok" placeholder="Pega un enlace de YouTube o TikTok" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 text-sm text-slate-100 placeholder-slate-500 text-left mb-3 disabled:opacity-70" />
+                                    {sharedLinkReceived && sourceUrl && !canQueue && <p className="mb-2 text-left text-xs text-cyan-300" role="status">Enlace recibido. Ya puedes transcribirlo.</p>}
+                                    <input type="url" value={sourceUrl} onChange={(e) => { setSourceUrl(e.target.value); setSharedLinkReceived(false); setQueueMsg(''); }}
+                                        onPaste={(e) => { const found = linkFromText(e.clipboardData?.getData('text')); if (canQueue && found) { e.preventDefault(); enqueueUrl(found); } }}
+                                        onKeyDown={(e) => { const found = linkFromText(sourceUrl); if (e.key === 'Enter' && canQueue && found) { e.preventDefault(); enqueueUrl(found); } }}
+                                        enterKeyHint={canQueue ? 'done' : undefined}
+                                        disabled={loading} aria-label="Enlace de YouTube o TikTok" placeholder={canQueue ? 'Pega un enlace: se guarda solo' : 'Pega un enlace de YouTube o TikTok'} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 text-sm text-slate-100 placeholder-slate-500 text-left mb-3 disabled:opacity-70" />
                                     {urlTranscribing ? (
                                         <div className="rounded-xl border border-cyan-900/60 bg-slate-900/60 p-3 text-left" aria-live="polite">
                                             <div className="flex justify-between gap-3 text-xs text-cyan-300 mb-2">
@@ -606,7 +617,6 @@ const { useEffect, useRef, useState } = React;
                                         </div>
                                     ) : (
                                         <div className="grid grid-cols-1 gap-2">
-                                            {canQueue && <button onClick={() => enqueueUrl(sourceUrl.trim())} disabled={loading || !/^https?:\/\//i.test(sourceUrl.trim())} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">Guardar en la cola</button>}
                                             {!canQueue && <button onClick={() => handleUrlTranscribe(!!(githubConnected && githubRepository), !!(driveConnected && saveToDrive))} disabled={loading || !sourceUrl.trim() || !canTranscribe || (githubConnected && !githubRepository)} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">{(githubConnected && githubRepository) || (saveToDrive && driveConnected) ? 'Transcribir y guardar' : 'Transcribir vídeo'}</button>}
                                         </div>
                                     )}

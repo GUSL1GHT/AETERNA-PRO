@@ -13,9 +13,16 @@
 
 ## Pruebas
 
-- `npm test` en `backend/`: 16 de 16 (incluye `library-format.test.js` y `job-queue.test.js`).
+- `npm test` en `backend/`: 19 de 19 (incluye `library-format.test.js` y `job-queue.test.js`).
 - De principio a fin en local con GitHub y Gemini **simulados** sobre una copia de la biblioteca (script en el scratchpad de la sesión, no versionado): compartir → «Guardado ✓» al instante → Procesando → Hecho; archivo, índice, README y estado en un único commit; servidor apagado → el enlace queda en el móvil y se envía al reabrir; trabajo pendiente tras reinicio → se retoma; error → Reintentar → Hecho. Vista móvil comprobada.
 - **Sin comprobar**: el service worker y Background Sync en un Chrome real (el navegador integrado no admite service workers; el script carga sin errores en una simulación); la calidad del formato con Gemini real; el flujo en Render.
+
+## Segunda ronda (15/11, tras la primera prueba real)
+
+- Los 2 primeros vídeos reales (`vm.tiktok.com`, @ia.cadasemana) quedaron «Para revisar» como «Vídeo sin título»: falló la segunda pasada de Gemini y el motivo no quedaba registrado. Corregido: Flash-Lite primero (más cuota y distinto del modelo que transcribe), los fallos temporales al ordenar se reintentan sin volver a transcribir, el motivo se anota en Notas y el título provisional sale de la transcripción. Causa exacta sin confirmar (sin acceso a los registros de Render); lo más probable es el límite de peticiones de la cuota gratuita.
+- Pegar un enlace en la casilla lo guarda solo (también con Intro); ya no hay botón «Guardar en la cola».
+- Nueva sección «Descripción del creador» con la descripción del vídeo tal cual (yt-dlp, sin coste de Gemini) y el enlace al perfil del creador; también se pasa a Gemini como contexto para el título y el tema. Comprobado en local con TikTok y YouTube reales; en Render, YouTube puede bloquear la lectura (el vídeo se procesa igual sin ella). Aviso enviado a la sesión de AETERNA-TRANSCRIPTS.
+- Pendiente (propuesta 4): sugerir vídeos relacionados del canal del creador, sin transcribir nada sin permiso.
 
 ## Publicación
 

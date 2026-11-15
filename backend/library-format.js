@@ -98,6 +98,16 @@ const bulletList = (items, fallback) => {
   return list.length ? list.map(item => `- ${item}`).join('\n') : fallback;
 };
 
+// Descripción que el creador escribió junto al vídeo, tal cual (prompts, comandos y enlaces).
+const creatorSection = (entry) => {
+  const description = clean(entry.creatorDescription);
+  if (!description) return '';
+  const who = oneLine(entry.creator);
+  const whoText = who ? (entry.creatorUrl ? `[${who}](${oneLine(entry.creatorUrl)})` : who) : '';
+  const quoted = description.split('\n').map(line => `> ${line}`.trimEnd()).join('\n');
+  return `\n## Descripción del creador\n\n${whoText ? `Publicado por ${whoText}.\n\n` : ''}${quoted}\n`;
+};
+
 const buildLibraryMarkdown = (entry) => {
   const date = madridDate(entry.date);
   const doubtful = (Array.isArray(entry.doubtfulTerms) ? entry.doubtfulTerms : [])
@@ -131,7 +141,7 @@ ${narration}
 ## En pantalla
 
 ${bulletList(entry.onScreen, 'Nada aparte de lo que se dice.')}
-
+${creatorSection(entry)}
 ## Notas
 
 ${notes.join('\n')}${doubtfulText}
