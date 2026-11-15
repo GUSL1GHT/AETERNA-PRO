@@ -1,7 +1,7 @@
 {
   "private": true,
   "scripts": {
-    "build": "esbuild src/app.jsx --bundle --minify --format=iife --outfile=assets/app.js && tailwindcss -i src/styles.css -o assets/app.css --content src/app.jsx,index.html --minify"
+    "build": "esbuild src/app.jsx --bundle --minify --format=iife --outfile=assets/app.js && tailwindcss -i src/styles.css -o assets/app.css --content src/app.jsx,src/QueuePanel.jsx,index.html --minify"
   },
   "dependencies": {
     "react": "^18.3.1",

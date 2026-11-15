@@ -1,10 +1,16 @@
-const CACHE_NAME = "aeterna-pro-v3";
+importScripts("./outbox.js");
+
+const CACHE_NAME = "aeterna-pro-v4";
+const BACKEND_URL = ["localhost", "127.0.0.1"].includes(self.location.hostname)
+  ? "http://127.0.0.1:3000"
+  : "https://aeterna-pro-backend.onrender.com";
 const CORE_ASSETS = [
   "./",
   "./index.html",
   "./assets/app.css",
   "./assets/app.js",
   "./manifest.webmanifest",
+  "./outbox.js",
   "./icon.svg",
   "./icon-192.png",
   "./icon-512.png"
@@ -39,4 +45,11 @@ self.addEventListener("fetch", (event) => {
     }
     return response;
   }).catch(() => caches.match(event.request, { ignoreSearch: true })));
+});
+
+// Envía los enlaces compartidos que quedaron pendientes, aunque la app esté cerrada.
+self.addEventListener("sync", (event) => {
+  if (event.tag === self.AeternaOutbox.SYNC_TAG) {
+    event.waitUntil(self.AeternaOutbox.flush(BACKEND_URL));
+  }
 });

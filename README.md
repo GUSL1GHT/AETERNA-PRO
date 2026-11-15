@@ -29,7 +29,18 @@ Al conectar una clave de Gemini, el backend consulta los modelos disponibles par
 
 La web pública es una PWA con icono propio. En Chrome para Android, abrir la URL de AETERNA y elegir **Instalar aplicación** en el menú del navegador, o pulsar **Instalar app** cuando aparezca en el pie de la interfaz. En Chrome de escritorio, usar **Instalar** en la barra de direcciones o en el menú. La instalación crea un icono y abre AETERNA en una ventana independiente; las transcripciones siguen necesitando Internet y el backend. No hace falta una APK para este uso. Una APK requeriría un empaquetado Android y firma adicionales.
 
-La PWA instalada con Chrome en Android acepta enlaces desde **Compartir** en aplicaciones compatibles, como TikTok o YouTube. AETERNA abre el formulario con el enlace ya pegado; la transcripción comienza al pulsar el botón. Tras actualizar el manifiesto, una instalación antigua puede necesitar reinstalarse para aparecer como destino en el menú de Android. La disponibilidad final también depende de qué formato envíe la aplicación de origen.
+La PWA instalada con Chrome en Android acepta enlaces desde **Compartir** en aplicaciones compatibles, como TikTok o YouTube. Si GitHub y Gemini están conectados y hay un repositorio elegido, el enlace se guarda al instante en la cola en segundo plano (ver abajo) y se puede cerrar la app; si no, AETERNA abre el formulario con el enlace ya pegado. Tras actualizar el manifiesto, una instalación antigua puede necesitar reinstalarse para aparecer como destino en el menú de Android. La disponibilidad final también depende de qué formato envíe la aplicación de origen.
+
+## Cola en segundo plano
+
+Compartir un vídeo con la app (o pulsar **Guardar en la cola**) guarda la URL en el dispositivo y muestra «Guardado ✓» sin esperar a Gemini. La app la envía al backend; si no hay conexión o Render está despertando, el service worker la reenvía más tarde aunque la app esté cerrada (Background Sync de Chrome) y, en último caso, al volver a abrirla.
+
+El backend apunta cada vídeo en `cola/<id>.json` del repositorio elegido (sin claves ni sesiones, porque el repositorio puede ser público) y lo procesa de uno en uno: descarga y transcripción como siempre, una segunda pasada de texto de Gemini que lo ordena en el formato de la biblioteca y una comprobación automática. Los fallos temporales de Gemini se reintentan solos (30 s, 2 min y 5 min). El resultado se publica en un solo commit:
+
+- `<Tema>/AAAA-MM-DD · Título.md` con las secciones De qué va, Ideas, Lo que dice el vídeo, En pantalla y Notas, más su fila al principio del `Índice.md` del tema y el contador del README.
+- Si el tema es dudoso o el texto limpio pierde alguna URL, `usuario/repositorio`, cifra o nombre técnico del original, o se queda por debajo del 45 % de sus palabras, se guarda en `transcripts/AAAA/MM/` con el texto original debajo, para revisarlo. Las palabras solo en mayúsculas que falten se anotan como aviso.
+
+La tarjeta **Cola en segundo plano** muestra cada vídeo como Enviando, Pendiente, Procesando, Hecho, Para revisar o Error, con **Abrir en GitHub** y **Reintentar**. Si Render se reinicia a mitad de un vídeo, este queda Pendiente y se retoma la próxima vez que se abra la app. Cada vídeo genera dos commits: uno al entrar en la cola y otro con el resultado. Código: `backend/job-queue.js`, `backend/library-format.js`, `backend/github-store.js`, `outbox.js` y `src/QueuePanel.jsx`.
 
 ## Despliegue y limpieza
 

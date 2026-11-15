@@ -1,5 +1,7 @@
 import React from 'react';
 import * as ReactDOM from 'react-dom/client';
+import '../outbox.js';
+import QueuePanel from './QueuePanel.jsx';
 const { useEffect, useRef, useState } = React;
 
         const BACKEND_URL = ["localhost", "127.0.0.1"].includes(location.hostname)
@@ -62,6 +64,44 @@ const { useEffect, useRef, useState } = React;
             const [githubInstallUrl, setGithubInstallUrl] = useState('');
             const [repositoryLoading, setRepositoryLoading] = useState(false);
             const [installPrompt, setInstallPrompt] = useState(null);
+            const [queueRefresh, setQueueRefresh] = useState(0);
+            const [queueMsg, setQueueMsg] = useState('');
+            const canQueue = canTranscribe && githubConnected && !!githubRepository;
+
+            // Guarda el enlace en el móvil al instante y lo envía a la cola del servidor.
+            // Si no hay conexión o el servidor está despertando, el service worker lo reenvía después.
+            const enqueueUrl = async (url, sessions = { geminiSession, githubSession }, repository = githubRepository) => {
+                try {
+                    await self.AeternaOutbox.add({ url, repository, ...sessions });
+                } catch (_) {
+                    setErrorMsg('No se pudo guardar el enlace en este dispositivo. Usa «Transcribir ahora».');
+                    return;
+                }
+                setSourceUrl('');
+                setSharedLinkReceived(false);
+                setQueueMsg('Guardado ✓ El vídeo se procesará en segundo plano; puedes cerrar la app.');
+                setQueueRefresh(value => value + 1);
+                self.AeternaOutbox.registerSync();
+                try { await self.AeternaOutbox.flush(BACKEND_URL, sessions); } catch (_) {}
+                setQueueRefresh(value => value + 1);
+            };
+
+            useEffect(() => {
+                if (!sharedLinkReceived || !sourceUrl) return;
+                const storedGithub = localStorage.getItem('aeterna-github-session') || '';
+                const storedRepository = localStorage.getItem('aeterna-github-repository') || '';
+                const storedGemini = localStorage.getItem('aeterna-gemini-session') || '';
+                const ownerGemini = localStorage.getItem('aeterna-owner-github') === 'yes';
+                if (storedGithub && storedRepository && (storedGemini || ownerGemini)) {
+                    enqueueUrl(sourceUrl, { geminiSession: storedGemini, githubSession: storedGithub }, storedRepository);
+                }
+            }, []);
+
+            // Al abrir la app, reenvía lo que quedó pendiente en el dispositivo.
+            useEffect(() => {
+                if (!canQueue) return;
+                self.AeternaOutbox.flush(BACKEND_URL, { geminiSession, githubSession }).catch(() => {}).finally(() => setQueueRefresh(value => value + 1));
+            }, [canQueue]);
 
             useEffect(() => {
                 if (contentRef.current) contentRef.current.scrollTop = 0;
@@ -550,8 +590,9 @@ const { useEffect, useRef, useState } = React;
                                         </div>}
                                         {geminiError && <p className="mt-1 text-xs text-red-300" role="alert">{geminiError}</p>}
                                     </div>
-                                    {sharedLinkReceived && sourceUrl && <p className="mb-2 text-left text-xs text-cyan-300" role="status">Enlace recibido. Ya puedes transcribirlo.</p>}
-                                    <input type="url" value={sourceUrl} onChange={(e) => { setSourceUrl(e.target.value); setSharedLinkReceived(false); }} disabled={loading} aria-label="Enlace de YouTube o TikTok" placeholder="Pega un enlace de YouTube o TikTok" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 text-sm text-slate-100 placeholder-slate-500 text-left mb-3 disabled:opacity-70" />
+                                    {queueMsg && <p className="mb-2 rounded-lg border border-emerald-800 bg-emerald-950/50 px-3 py-2 text-left text-sm font-semibold text-emerald-200" role="status">{queueMsg}</p>}
+                                    {sharedLinkReceived && sourceUrl && <p className="mb-2 text-left text-xs text-cyan-300" role="status">Enlace recibido. {canQueue ? 'Guárdalo en la cola o transcríbelo ahora.' : 'Ya puedes transcribirlo.'}</p>}
+                                    <input type="url" value={sourceUrl} onChange={(e) => { setSourceUrl(e.target.value); setSharedLinkReceived(false); setQueueMsg(''); }} disabled={loading} aria-label="Enlace de YouTube o TikTok" placeholder="Pega un enlace de YouTube o TikTok" className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 text-sm text-slate-100 placeholder-slate-500 text-left mb-3 disabled:opacity-70" />
                                     {urlTranscribing ? (
                                         <div className="rounded-xl border border-cyan-900/60 bg-slate-900/60 p-3 text-left" aria-live="polite">
                                             <div className="flex justify-between gap-3 text-xs text-cyan-300 mb-2">
@@ -565,10 +606,18 @@ const { useEffect, useRef, useState } = React;
                                         </div>
                                     ) : (
                                         <div className="grid grid-cols-1 gap-2">
-                                            <button onClick={() => handleUrlTranscribe(!!(githubConnected && githubRepository), !!(driveConnected && saveToDrive))} disabled={loading || !sourceUrl.trim() || !canTranscribe || (githubConnected && !githubRepository)} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">{(githubConnected && githubRepository) || (saveToDrive && driveConnected) ? 'Transcribir y guardar' : 'Transcribir vídeo'}</button>
+                                            {canQueue && <button onClick={() => enqueueUrl(sourceUrl.trim())} disabled={loading || !/^https?:\/\//i.test(sourceUrl.trim())} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">Guardar en la cola</button>}
+                                            <button onClick={() => handleUrlTranscribe(!!(githubConnected && githubRepository), !!(driveConnected && saveToDrive))} disabled={loading || !sourceUrl.trim() || !canTranscribe || (githubConnected && !githubRepository)} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded-xl transition-all disabled:opacity-50">{(githubConnected && githubRepository) || (saveToDrive && driveConnected) ? (canQueue ? 'Transcribir ahora y guardar' : 'Transcribir y guardar') : 'Transcribir vídeo'}</button>
                                         </div>
                                     )}
                                 </div>
+                                {canQueue && <div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-3 shrink-0">
+                                    <div className="mb-2 flex items-center justify-between gap-2">
+                                        <h2 className="text-sm font-semibold text-slate-100">Cola en segundo plano</h2>
+                                        <button type="button" onClick={() => setQueueRefresh(value => value + 1)} className="text-xs text-cyan-300 hover:underline">Actualizar</button>
+                                    </div>
+                                    <QueuePanel backendUrl={BACKEND_URL} geminiSession={geminiSession} githubSession={githubSession} repository={githubRepository} refreshKey={queueRefresh} onSessionRenewed={(response) => adoptGithubSession(response, githubSession)} />
+                                </div>}
                                 <div className={driveConnected ? "rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-xs shrink-0" : "flex flex-col items-center gap-1 text-xs shrink-0"}>
                                     {driveConnected ? <>
                                         <div className="flex items-center justify-between gap-2"><span className="text-emerald-300 truncate">Google Drive conectado: {driveName}</span><button onClick={disconnectDrive} className="text-slate-400 hover:text-white shrink-0">Desconectar</button></div>
