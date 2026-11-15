@@ -17,13 +17,15 @@
 - De principio a fin en local con GitHub y Gemini **simulados** sobre una copia de la biblioteca (script en el scratchpad de la sesión, no versionado): compartir → «Guardado ✓» al instante → Procesando → Hecho; archivo, índice, README y estado en un único commit; servidor apagado → el enlace queda en el móvil y se envía al reabrir; trabajo pendiente tras reinicio → se retoma; error → Reintentar → Hecho. Vista móvil comprobada.
 - **Sin comprobar**: el service worker y Background Sync en un Chrome real (el navegador integrado no admite service workers; el script carga sin errores en una simulación); la calidad del formato con Gemini real; el flujo en Render.
 
+## Publicación
+
+- Con autorización del usuario, `4ef2905` se subió a `beta-v1.1-url-whisper` (despliegue) y a `codex/visual-text-extraction` el 15/11/2026.
+
 ## Siguiente paso
 
-1. El usuario autoriza publicar la rama en `beta-v1.1-url-whisper` (Pages y Render se actualizan solos).
-2. Compartir un vídeo real desde el móvil y revisar el archivo publicado en AETERNA-TRANSCRIPTS.
-3. Si Gemini resume demasiado, ajustar el prompt de `formatForLibrary` (los vídeos irían a `transcripts/` para revisión, sin pérdida).
+1. Compartir un vídeo real desde el móvil y revisar el archivo publicado en AETERNA-TRANSCRIPTS.
+2. Si Gemini resume demasiado, ajustar el prompt de `formatForLibrary` (los vídeos irían a `transcripts/` para revisión, sin pérdida).
 
 ## Bloqueos
 
-- Publicar y desplegar requieren el permiso del usuario.
 - Riesgo conocido: en el plan gratuito de Render, un vídeo interrumpido por un reinicio espera hasta la próxima vez que se abra la app.
