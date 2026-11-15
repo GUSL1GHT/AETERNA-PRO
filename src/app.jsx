@@ -22,11 +22,6 @@ const { useEffect, useRef, useState } = React;
             const [saving, setSaving] = useState(false);
             const [result, setResult] = useState(null);
             const [resultMeta, setResultMeta] = useState(null);
-            const [guide, setGuide] = useState('');
-            const [guideType, setGuideType] = useState('procedure');
-            const [guideView, setGuideView] = useState(false);
-            const [guideLoading, setGuideLoading] = useState(false);
-            const [guideError, setGuideError] = useState('');
             const contentRef = useRef(null);
             const [activeMode, setActiveMode] = useState('audio');
             const [visualVerification, setVisualVerification] = useState(false);
@@ -112,7 +107,7 @@ const { useEffect, useRef, useState } = React;
 
             useEffect(() => {
                 if (contentRef.current) contentRef.current.scrollTop = 0;
-            }, [guideView, guide, result]);
+            }, [result]);
 
             useEffect(() => {
                 if (sharedLinkReceived) history.replaceState(null, '', location.pathname);
@@ -376,10 +371,6 @@ const { useEffect, useRef, useState } = React;
                 setSaveMsg(null);
                 setResult(null);
                 setResultMeta(null);
-                setGuide('');
-                setGuideType('procedure');
-                setGuideView(false);
-                setGuideError('');
                 setVisualVerification(false);
             };
 
@@ -508,35 +499,12 @@ const { useEffect, useRef, useState } = React;
                 }
             };
 
-            const createGuide = async () => {
-                if (!result || guideLoading) return;
-                setGuideLoading(true);
-                setGuideError('');
-                try {
-                    const response = await fetch(`${BACKEND_URL}/api/create-guide`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'X-Aeterna-Gemini-Session': geminiSession, 'X-Aeterna-Github-Session': githubSession },
-                        body: JSON.stringify({ transcription: result, title, sourceUrl: resultMeta?.sourceUrl || '', mode: resultMeta?.mode || 'audio' })
-                    });
-                    adoptGithubSession(response, githubSession);
-                    const data = await response.json();
-                    if (!response.ok || !data.success) throw new Error(response.status === 401 ? 'Vuelve a conectar Gemini para crear la guía.' : data.error || 'No se pudo crear la guía.');
-                    setGuide(data.guide);
-                    setGuideType(data.type || 'procedure');
-                    setGuideView(true);
-                } catch (error) {
-                    setGuideError(error.message || 'No se pudo crear la guía.');
-                } finally {
-                    setGuideLoading(false);
-                }
-            };
-
             const shareTranscript = async () => {
-                const visibleText = guideView && guide ? guide : result;
+                const visibleText = result;
                 if (!visibleText) return;
                 if (navigator.share) {
                     try {
-                        await navigator.share({ title: guideView ? (guideType === 'catalogue' ? 'Programas del vídeo' : 'Guía AETERNA') : title || 'Transcripción AETERNA', text: visibleText });
+                        await navigator.share({ title: title || 'Transcripción AETERNA', text: visibleText });
                         return;
                     } catch (error) {
                         if (error?.name === 'AbortError') return;
@@ -551,23 +519,16 @@ const { useEffect, useRef, useState } = React;
             };
 
             const downloadTextFile = () => {
-                const visibleText = guideView && guide ? guide : result;
+                const visibleText = result;
                 if (!visibleText) return;
                 const blob = new Blob([visibleText], { type: "text/plain" });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement("a");
                 a.href = url;
-                a.download = guideView ? (guideType === 'catalogue' ? 'programas-del-video.txt' : 'guia-paso-a-paso.txt') : 'transcripcion.txt';
+                a.download = 'transcripcion.txt';
                 a.click();
                 URL.revokeObjectURL(url);
             };
-
-            const renderGuideText = (text) => text.split(/(https:\/\/[^\s]+)/g).map((part, index, pieces) => {
-                if (!/^https:\/\//.test(part)) return part;
-                const line = (pieces[index - 1] || '').split('\n').pop();
-                const label = /Vídeo original:/i.test(line) ? 'Ver vídeo original' : /descarg|instala/i.test(line) ? 'Abrir página de descarga' : 'Abrir recurso';
-                return <a key={index} href={part} title={part} aria-label={`${label}: ${part}`} target="_blank" rel="noopener noreferrer" className="inline-flex max-w-full rounded-md bg-cyan-900/50 px-2 py-0.5 font-semibold text-cyan-200 underline underline-offset-2 hover:bg-cyan-800/70">{label} ↗</a>;
-            });
 
             const hasOutput = !!result || !!errorMsg || !!saveMsg;
 
@@ -681,19 +642,11 @@ const { useEffect, useRef, useState } = React;
 
                                 {result && (
                                     <>
-                                        {guide ? (
-                                            <div className="shrink-0 grid grid-cols-2 gap-2" role="tablist" aria-label="Contenido generado">
-                                                <button type="button" role="tab" aria-selected={!guideView} onClick={() => setGuideView(false)} className={`rounded-xl px-2 py-2.5 text-xs font-bold ${!guideView ? 'bg-cyan-700 text-white' : 'bg-slate-800 text-slate-300'}`}>Transcripción</button>
-                                                <button type="button" role="tab" aria-selected={guideView} onClick={() => setGuideView(true)} className={`rounded-xl px-2 py-2.5 text-xs font-bold ${guideView ? 'bg-amber-700 text-white' : 'bg-slate-800 text-slate-300'}`}>{guideType === 'catalogue' ? 'Programas del vídeo' : 'Guía paso a paso'}</button>
-                                            </div>
-                                        ) : <button type="button" onClick={createGuide} disabled={guideLoading || !canTranscribe} className="shrink-0 rounded-xl border border-amber-600 bg-amber-900/50 px-3 py-2.5 text-sm font-bold text-amber-100 hover:bg-amber-800/60 disabled:opacity-50">{guideLoading ? 'Creando guía…' : 'Crear guía paso a paso'}</button>}
-                                        {guideError && <p className="shrink-0 text-xs text-red-300" role="alert">{guideError}</p>}
-                                        {guideView && <p className="shrink-0 text-xs text-amber-300">{guideType === 'catalogue' ? 'Programas identificados en las imágenes. Comprueba sus páginas antes de instalarlos.' : 'Guía basada en la transcripción. Revisa los pasos antes de seguirlos.'}</p>}
-                                        {!guideView && resultMeta?.mode === 'visual' && <p className="text-xs text-sky-300">Texto leído de las imágenes, en su idioma original. Las marcas de tiempo son aproximadas; revisa los fragmentos [ilegible].</p>}
-                                        {!guideView && resultMeta?.mode !== 'visual' && resultMeta?.platform === 'YouTube' && <p className="text-xs text-sky-300">Si YouTube reproduce un doblaje automático, la transcripción se traduce al español desde el audio disponible y puede no coincidir palabra por palabra con ese doblaje.</p>}
-                                        {!guideView && resultMeta?.mode !== 'visual' && !visualVerification && resultMeta?.sourceUrl && <p className="text-xs text-amber-300">Solo audio disponible: revisa los nombres de programas con el vídeo original.</p>}
-                                        <div ref={contentRef} className="flex-1 min-h-0 bg-slate-950 p-3 md:p-4 rounded-2xl border border-slate-700 text-slate-100 text-sm whitespace-pre-wrap leading-relaxed overflow-y-auto shadow-inner" role="region" aria-label={guideView ? 'Guía paso a paso' : 'Texto transcrito'} tabIndex="0">
-                                            {guideView ? renderGuideText(guide) : result}
+                                        {resultMeta?.mode === 'visual' && <p className="text-xs text-sky-300">Texto leído de las imágenes, en su idioma original. Las marcas de tiempo son aproximadas; revisa los fragmentos [ilegible].</p>}
+                                        {resultMeta?.mode !== 'visual' && resultMeta?.platform === 'YouTube' && <p className="text-xs text-sky-300">Si YouTube reproduce un doblaje automático, la transcripción se traduce al español desde el audio disponible y puede no coincidir palabra por palabra con ese doblaje.</p>}
+                                        {resultMeta?.mode !== 'visual' && !visualVerification && resultMeta?.sourceUrl && <p className="text-xs text-amber-300">Solo audio disponible: revisa los nombres de programas con el vídeo original.</p>}
+                                        <div ref={contentRef} className="flex-1 min-h-0 bg-slate-950 p-3 md:p-4 rounded-2xl border border-slate-700 text-slate-100 text-sm whitespace-pre-wrap leading-relaxed overflow-y-auto shadow-inner" role="region" aria-label="Texto transcrito" tabIndex="0">
+                                            {result}
                                         </div>
 
                                         <div className="shrink-0 grid grid-cols-2 gap-2 md:gap-3">
