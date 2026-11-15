@@ -1,6 +1,6 @@
 importScripts("./outbox.js");
 
-const CACHE_NAME = "aeterna-pro-v4";
+const CACHE_NAME = "aeterna-pro-v5";
 const BACKEND_URL = ["localhost", "127.0.0.1"].includes(self.location.hostname)
   ? "http://127.0.0.1:3000"
   : "https://aeterna-pro-backend.onrender.com";
@@ -38,7 +38,11 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (new URL(event.request.url).origin !== self.location.origin) return;
-  event.respondWith(fetch(event.request).then((response) => {
+  // GitHub Pages permite guardar los archivos 10 minutos; «no-cache» obliga a comprobar si hay versión nueva.
+  const request = event.request.mode === 'navigate'
+    ? new Request(event.request.url, { cache: 'no-cache', credentials: 'same-origin' })
+    : new Request(event.request, { cache: 'no-cache' });
+  event.respondWith(fetch(request).then((response) => {
     if (response.ok && event.request.mode === 'navigate') {
       const copy = response.clone();
       caches.open(CACHE_NAME).then((cache) => cache.put('./index.html', copy));

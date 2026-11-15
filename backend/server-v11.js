@@ -23,6 +23,8 @@ app.use((req, res, next) => { res.set('Access-Control-Expose-Headers', 'X-Aetern
 app.use(express.json({ limit: '2mb' }));
 registerDriveRoutes(app);
 
+// El modo JSON (responseMimeType) solo existe en v1beta; las versiones nuevas del SDK usan v1 por defecto.
+const GEMINI_API_VERSION = 'v1beta';
 const geminiSessions = new Map();
 const GEMINI_SESSION_MS = 7 * 24 * 60 * 60 * 1000;
 const PERSISTENT_SESSION_MS = 90 * 24 * 60 * 60 * 1000;
@@ -45,7 +47,7 @@ const geminiSessionFromRequest = (req) => {
 const requireGeminiSession = async (req, res, next) => {
   const session = geminiSessionFromRequest(req);
   if (session) {
-    req.geminiAi = new GoogleGenAI({ apiKey: session.apiKey });
+    req.geminiAi = new GoogleGenAI({ apiKey: session.apiKey, apiVersion: GEMINI_API_VERSION, httpOptions: { apiVersion: GEMINI_API_VERSION } });
     req.geminiModels = session.models;
     return next();
   }
@@ -55,7 +57,7 @@ const requireGeminiSession = async (req, res, next) => {
       const githubSession = await sessionFromId(githubSessionId);
       if (githubSession?.login?.toLowerCase() === 'gusl1ght') {
         if (githubSession.renewedSessionId) res.set('X-Aeterna-Github-Session', githubSession.renewedSessionId);
-        req.geminiAi = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+        req.geminiAi = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY, apiVersion: GEMINI_API_VERSION, httpOptions: { apiVersion: GEMINI_API_VERSION } });
         req.geminiModels = OWNER_GEMINI_MODELS;
         return next();
       }
