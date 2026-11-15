@@ -26,7 +26,7 @@
 
 ## Publicación
 
-- Con autorización del usuario, `4ef2905` se subió a `beta-v1.1-url-whisper` (despliegue) y a `codex/visual-text-extraction` el 15/11/2026.
+- Con autorización del usuario, `4ef2905` y después `3cec077` se subieron a `beta-v1.1-url-whisper` (despliegue) y a `codex/visual-text-extraction` el 15/11/2026.
 
 ## Siguiente paso
 
