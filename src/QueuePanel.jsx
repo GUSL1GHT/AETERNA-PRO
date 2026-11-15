@@ -7,6 +7,7 @@ const STATUS = {
     procesando: { label: 'Procesando', className: 'border-cyan-600 bg-cyan-950/60 text-cyan-200' },
     hecho: { label: 'Hecho', className: 'border-emerald-700 bg-emerald-950/60 text-emerald-200' },
     revisar: { label: 'Para revisar', className: 'border-amber-600 bg-amber-950/60 text-amber-200' },
+    revisado: { label: 'Revisado', className: 'border-emerald-800 bg-slate-800 text-emerald-200' },
     error: { label: 'Error', className: 'border-red-700 bg-red-950/60 text-red-200' }
 };
 
@@ -78,6 +79,19 @@ export default function QueuePanel({ backendUrl, geminiSession, githubSession, r
         refresh();
     };
 
+    const removeJob = async (id) => {
+        setJobs(current => current.filter(job => job.id !== id));
+        try {
+            const response = await fetch(`${backendUrl}/api/jobs/${encodeURIComponent(id)}/remove`, { method: 'POST', headers, body: JSON.stringify({ repository }) });
+            onSessionRenewed?.(response);
+            const data = await response.json();
+            if (!response.ok || !data.success) throw new Error(data.error || 'No se pudo quitar de la lista.');
+        } catch (error) {
+            setLoadError(error.message);
+        }
+        refresh();
+    };
+
     const discardOutbox = async (id) => {
         await self.AeternaOutbox.remove(id);
         refresh();
@@ -86,7 +100,7 @@ export default function QueuePanel({ backendUrl, geminiSession, githubSession, r
     const serverIds = new Set(jobs.map(job => job.id));
     const rows = [
         ...outbox.filter(item => !serverIds.has(item.id)).map(item => ({ id: item.id, url: item.url, status: item.state === 'error' ? 'error' : 'enviando', error: item.error, when: item.createdAt, local: true })),
-        ...jobs.map(job => ({ id: job.id, url: job.url, status: job.status === 'hecho' && job.result?.review ? 'revisar' : job.status, error: job.error, note: job.note, when: job.createdAt, result: job.result }))
+        ...jobs.map(job => ({ id: job.id, url: job.url, status: job.status === 'hecho' && job.result?.review ? (job.reviewed ? 'revisado' : 'revisar') : job.status, error: job.error, note: job.note, when: job.createdAt, result: job.result }))
     ].sort((a, b) => b.id.localeCompare(a.id));
 
     if (!rows.length && !loadError) {
@@ -110,10 +124,12 @@ export default function QueuePanel({ backendUrl, geminiSession, githubSession, r
                             </div>
                             {row.note && row.status === 'procesando' && <p className="mt-1 text-[11px] text-cyan-300">{row.note}</p>}
                             {row.status === 'revisar' && <p className="mt-1 text-[11px] text-amber-300">Guardado en transcripts/ para que lo revises: tema dudoso o texto incompleto.</p>}
+                            {row.status === 'revisado' && <p className="mt-1 text-[11px] text-slate-400">Ya se movió de transcripts/ a su tema. Puedes quitarlo de la lista.</p>}
                             {row.error && <p className="mt-1 text-[11px] text-red-300 break-words">{row.error}</p>}
                             <div className="mt-1.5 flex flex-wrap gap-3 text-xs">
-                                {row.result?.url && <a href={row.result.url} target="_blank" rel="noopener noreferrer" className="font-semibold text-cyan-300 hover:underline">Abrir en GitHub</a>}
+                                {row.result?.url && row.status !== 'revisado' && <a href={row.result.url} target="_blank" rel="noopener noreferrer" className="font-semibold text-cyan-300 hover:underline">Abrir en GitHub</a>}
                                 {row.status === 'error' && !row.local && <button type="button" onClick={() => retryJob(row.id)} className="font-semibold text-cyan-300 hover:underline">Reintentar</button>}
+                                {!row.local && ['hecho', 'revisar', 'revisado', 'error'].includes(row.status) && <button type="button" onClick={() => removeJob(row.id)} aria-label={`Quitar de la lista: ${row.result?.title || shortUrl(row.url)}`} className="ml-auto text-slate-400 hover:text-white hover:underline">Quitar</button>}
                                 {row.status === 'error' && row.local && <>
                                     <button type="button" onClick={() => retryOutbox(row.id)} className="font-semibold text-cyan-300 hover:underline">Reintentar</button>
                                     <button type="button" onClick={() => discardOutbox(row.id)} className="text-slate-400 hover:underline">Quitar</button>

@@ -58,6 +58,13 @@ const createGithubStore = ({ token, owner, repo, branch, fetchImpl = fetch }) =>
     });
   };
 
+  const deleteFile = async (filePath, message) => {
+    const existing = await getFile(filePath);
+    if (!existing) return false;
+    await call('DELETE', `/contents/${encodePath(filePath)}`, { message, sha: existing.sha, branch });
+    return true;
+  };
+
   // build(read) devuelve [{ path, content }] leyendo con read(path) la versión del commit actual.
   const commitFiles = async (build, message, attempts = 4) => {
     let lastError;
@@ -85,7 +92,7 @@ const createGithubStore = ({ token, owner, repo, branch, fetchImpl = fetch }) =>
 
   const htmlUrl = (filePath) => `https://github.com/${owner}/${repo}/blob/${encodeURIComponent(branch)}/${encodePath(filePath)}`;
 
-  return { getFile, listDir, putFile, commitFiles, htmlUrl };
+  return { getFile, listDir, putFile, deleteFile, commitFiles, htmlUrl };
 };
 
 module.exports = { createGithubStore };

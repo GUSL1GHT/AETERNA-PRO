@@ -24,6 +24,7 @@
 - Nueva sección «Descripción del creador» con la descripción del vídeo tal cual (yt-dlp, sin coste de Gemini) y el enlace al perfil del creador; también se pasa a Gemini como contexto para el título y el tema. Comprobado en local con TikTok y YouTube reales; en Render, YouTube puede bloquear la lectura (el vídeo se procesa igual sin ella). Aviso enviado a la sesión de AETERNA-TRANSCRIPTS.
 - Causa real de «Para revisar» (anotada por la propia app): Render instala `@google/genai` 3.x, que usa la API v1 sin modo JSON. Corregido fijando `v1beta` (comprobado con la 3.3.0). El service worker pide los archivos con no-cache para no servir la versión anterior.
 - Retirada «Crear guía paso a paso» (botón y `/api/create-guide`) a petición del usuario.
+- Botón «Quitar» en los vídeos terminados (`POST /api/jobs/:id/remove`, borra solo `cola/<id>.json`) y estado «Revisado» automático cuando el archivo para revisión ya no está en `transcripts/`. Primer vídeo real bien ordenado confirmado por el usuario (Skills y Claude Code).
 - Pendiente (propuesta 4): sugerir vídeos relacionados del canal del creador, sin transcribir nada sin permiso.
 
 ## Publicación

@@ -1222,7 +1222,31 @@ app.get('/api/jobs', requireGeminiSession, async (req, res) => {
     }))).filter(Boolean);
     // Al abrir la app se retoman los trabajos que quedaron a medias por un reinicio del servidor.
     for (const job of jobs.slice().reverse()) if (jobQueue.shouldResume(job)) jobQueue.enqueue(job, ctx);
+    // Un vídeo «para revisar» cuyo archivo ya no está en transcripts/ lo ha movido alguien: está revisado.
+    await Promise.all(jobs.map(async (job) => {
+      if (job.status !== 'hecho' || !job.result?.review || !job.result?.path) return;
+      try { if (!(await ctx.store.getFile(job.result.path))) job.reviewed = true; } catch (_) { /* Si GitHub no responde, se deja como estaba. */ }
+    }));
     res.json({ success: true, jobs: jobs.map(jobQueue.overlay) });
+  } catch (error) {
+    sendJobError(res, error);
+  }
+});
+
+// Quita un vídeo terminado de la lista de la cola. Solo borra cola/<id>.json, nunca la transcripción.
+app.post('/api/jobs/:id/remove', requireGeminiSession, async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const id = cleanText(req.params.id);
+    if (!JOB_ID_RE.test(id)) throw new UserFacingError(400, 'Identificador de trabajo no válido.');
+    if (jobQueue.isActive(id)) throw new UserFacingError(409, 'Ese vídeo todavía se está procesando.');
+    const ctx = await jobContextFromRequest(req, res);
+    const file = await ctx.store.getFile(jobPath(id));
+    if (file && !['hecho', 'error'].includes(JSON.parse(file.content).status)) {
+      throw new UserFacingError(409, 'Solo se pueden quitar los vídeos terminados.');
+    }
+    if (file) await ctx.store.deleteFile(jobPath(id), `AETERNA: quitar de la cola ${id}`);
+    res.json({ success: true });
   } catch (error) {
     sendJobError(res, error);
   }
